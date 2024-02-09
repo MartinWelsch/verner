@@ -1,0 +1,19 @@
+[package]
+name = "verner"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.75"
+colored = "2.0.4"
+gix = { version = "0.55.2", optional = true }
+semver = "1.0.20"
+serde = { version = "1.0.193", features = ["derive"] }
+serde_yaml = "0.9.27"
+thiserror = "1.0.50"
+
+[features]
+default = ["git"]
+git = ["dep:gix"]

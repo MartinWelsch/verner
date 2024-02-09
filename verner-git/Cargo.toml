@@ -1,0 +1,11 @@
+[package]
+name = "verner-git"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gix = "0.55.2"
+semver = "1.0.20"
+verner-core = { version = "0.1.0", path = "../verner-core" }
