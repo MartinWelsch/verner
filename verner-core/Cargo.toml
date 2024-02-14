@@ -7,3 +7,4 @@ edition.workspace = true
 
 [dependencies]
 semver = "1.0.20"
+anyhow = "1.0.79"
