@@ -6,6 +6,8 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0.80"
 gix = "0.55.2"
+regex = "1.10.3"
 semver = "1.0.20"
 verner-core = { version = "0.1.0", path = "../verner-core" }

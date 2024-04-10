@@ -19,7 +19,8 @@ pub trait VersionOp<Inc>
 pub fn resolve_version<Ver: VersionOp<Inc> + Default, Inc>(history: &mut HistoryIter<Ver, Inc>) -> Ver
 {
     let mut incs: Vec<Inc> = Default::default();
-    
+    let mut basis = Ver::default();
+
     while let Some(inc) = history.next()
     {
         match inc
@@ -28,17 +29,19 @@ pub fn resolve_version<Ver: VersionOp<Inc> + Default, Inc>(history: &mut History
             {
                 incs.push(add);
             },
-            VersionInc::Basis(mut basis) =>
+            VersionInc::Basis(basis_override) =>
             {
-                for i in incs.as_slice()
-                {
-                    basis.inc(i);
-                }
-                return basis;
+                basis = basis_override;
+                break;
             },
             VersionInc::Skip => {},
         }
     }
 
-    Ver::default()
+    for i in incs.as_slice()
+    {
+        basis.inc(i);
+    }
+    
+    basis
 }

@@ -1,4 +1,4 @@
-use std::fmt::{Display, Write};
+use std::{borrow::Cow, fmt::{Display, Write}, rc::Rc};
 
 use crate::VersionOp;
 
@@ -11,7 +11,17 @@ pub struct SemVersion
     minor: u32,
     patch: u32,
     build: u32,
-    tag: Option<String>
+    tag: Option<Rc<Box<String>>>
+}
+
+impl SemVersion
+{
+    pub fn tag(&self, tag: &str) -> SemVersion
+    {
+        let mut v = self.clone();
+        v.tag = Some(Rc::new(Box::new(tag.to_string())));
+        v
+    }
 }
 
 #[derive(Clone)]
