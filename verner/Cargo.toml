@@ -9,6 +9,8 @@ edition.workspace = true
 anyhow = "1.0.75"
 colored = "2.0.4"
 gix = { version = "0.55.2", optional = true }
+lazy_static = "1.4.0"
+regex = "1.10.4"
 semver = "1.0.20"
 serde = { version = "1.0.193", features = ["derive"] }
 serde_yaml = "0.9.27"

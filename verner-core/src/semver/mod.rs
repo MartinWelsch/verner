@@ -1,10 +1,18 @@
 use std::{borrow::Cow, fmt::{Display, Write}, rc::Rc};
 
+use regex::Regex;
+
 use crate::VersionOp;
 
 pub mod releaseflow;
 
-#[derive(Clone, Default)]
+
+lazy_static::lazy_static!
+{
+    static ref SEMVER_REGEX: Regex = Regex::new(r"^(?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?(?:-(?<tag>[^\.]+)(?:\.(?<build>\d+))?)?$").unwrap();
+}
+
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct SemVersion
 {
     major: u32,
@@ -16,6 +24,23 @@ pub struct SemVersion
 
 impl SemVersion
 {
+    pub fn parse(s: &str) -> Option<Self>
+    {
+        if let Some(captures) = SEMVER_REGEX.captures(s)
+        {
+            return Some(Self
+            {
+                major: captures["major"].parse().unwrap(),
+                minor: captures["minor"].parse().unwrap(),
+                patch: captures.name("patch").map_or(0, |s| s.as_str().parse().unwrap()),
+                build: captures.name("build").map_or(0, |s| s.as_str().parse().unwrap()),
+                tag: captures.name("tag").map(|s| Rc::new(Box::new(s.as_str().to_string())))
+            })
+        }
+
+        None
+    }
+
     pub fn tag(&self, tag: &str) -> SemVersion
     {
         let mut v = self.clone();
@@ -88,5 +113,62 @@ impl Display for SemVersion
         }
 
         Ok(())
+    }
+}
+
+impl PartialOrd for SemVersion
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering>
+    {
+        if self.major > other.major
+        {
+            return Some(std::cmp::Ordering::Greater);
+        }
+        
+        if self.major < other.major
+        {
+            return Some(std::cmp::Ordering::Less)
+        }
+
+        
+        if self.minor > other.minor
+        {
+            return Some(std::cmp::Ordering::Greater);
+        }
+        
+        if self.minor < other.minor
+        {
+            return Some(std::cmp::Ordering::Less)
+        }
+        
+
+        if self.patch > other.patch
+        {
+            return Some(std::cmp::Ordering::Greater);
+        }
+        
+        if self.patch < other.patch
+        {
+            return Some(std::cmp::Ordering::Less)
+        }
+
+        if self.tag != other.tag
+        {
+            return None;
+        }
+
+        
+        if self.build > other.build
+        {
+            return Some(std::cmp::Ordering::Greater);
+        }
+        
+        if self.build < other.build
+        {
+            return Some(std::cmp::Ordering::Less)
+        }
+
+        
+        Some(std::cmp::Ordering::Equal)
     }
 }

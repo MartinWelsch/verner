@@ -1,5 +1,8 @@
+pub mod releaseflow;
+
 use anyhow::Result;
 use gix::{ObjectId, Repository};
+use regex::Regex;
 use verner_core::{semver::{SemVersion, SemVersionInc}, VersionInc};
 
 
@@ -27,7 +30,7 @@ impl<'a> LogIterator<'a>
 
     fn solve_inc_for_commit(&self, rev: &gix::revision::walk::Info<'a>) -> VersionInc<SemVersion, SemVersionInc>
     {
-        VersionInc::Add(SemVersionInc::Build(1))
+        rev.object().to
     }
 }
 
@@ -54,7 +57,11 @@ impl Iterator for LogIterator<'_>
 #[derive(Default)]
 struct Config
 {
-    branch_tags: Vec<(String, String)>
+    /// prerelease tags per branch: (\<branch regex>, \<prerelease tag>)
+    branch_tags: Vec<(Regex, String)>,
+
+    /// branches (regex) which define a base version at the common commit on the current barnch
+    base_version_sources: Vec<gix::hash::ObjectId>
 }
 
 impl Config
@@ -64,8 +71,7 @@ impl Config
     {
         for (re, tag) in self.branch_tags.as_slice()
         {
-            let regex = regex::Regex::new(&re)?;
-            if regex.is_match(branch_name)
+            if re.is_match(branch_name)
             {
                 return Ok(Some(tag.to_string()));
             }
@@ -79,7 +85,7 @@ fn main()
 {
     let mut cfg = Config::default();
 
-    cfg.branch_tags.push(("git-semver.*".into(), "g".into()));
+    // cfg.branch_tags.push(("git-semver.*".into(), "g".into()));
 
 
     let repo = gix::discover(std::env::current_dir().unwrap()).unwrap();
@@ -101,4 +107,3 @@ fn main()
     
     println!("Version: {}", v);
 }
-

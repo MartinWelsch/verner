@@ -7,7 +7,8 @@ edition.workspace = true
 
 [dependencies]
 anyhow = "1.0.80"
-gix = "0.55.2"
+gix = "0.61.0"
+lazy_static = "1.4.0"
 regex = "1.10.3"
 semver = "1.0.20"
 verner-core = { version = "0.1.0", path = "../verner-core" }
