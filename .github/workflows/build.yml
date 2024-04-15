@@ -16,9 +16,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+
+    - name: Prepare verner-git tests
+      run: sh verner-git/setup-test.sh
     
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --release --verbose
       
     - name: Build verner
       run: cargo build --bin verner --release --verbose
@@ -26,9 +29,7 @@ jobs:
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v4.3.1
       with:
-        # Artifact name
         name: verner
-        # A file, directory or wildcard pattern that describes what to upload
         path: target/release/verner
         if-no-files-found: error
               
