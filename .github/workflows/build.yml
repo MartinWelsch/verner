@@ -16,7 +16,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-
+    
+    - name: Prepare verner-git tests
+      run: |
+        rustup target add x86_64-unknown-linux-gnu
+        rustup target add x86_64-pc-windows-gnu
+      
     - name: Prepare verner-git tests
       run: |
         git config --global user.email "git@git.git"
@@ -26,8 +31,11 @@ jobs:
     - name: Run tests
       run: cargo test --release --verbose
       
-    - name: Build verner
-      run: cargo build --bin verner --release --verbose
+    - name: Build verner - Linux
+      run: cargo build --bin verner --release --verbose --target x86_64-unknown-linux-gnu
+    
+    - name: Build verner - Windows
+      run: cargo build --bin verner --release --verbose --target x86_64-pc-windows-gnu
     
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v4.3.1
