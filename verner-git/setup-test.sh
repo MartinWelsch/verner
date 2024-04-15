@@ -20,21 +20,55 @@ function git_commit
 }
 
 
-# begin setup semver repos
-SEMVER_ROOT="$GIT_REPOS_DIR/semver"
-mkdir -p "$SEMVER_ROOT"
+# begin setup releaseflow repos
+RELEASEFLOW_ROOT="$GIT_REPOS_DIR/releaseflow"
+mkdir -p "$RELEASEFLOW_ROOT"
 
-REPO="$SEMVER_ROOT/0.0.1-SNAPSHOT.2"
+REPO="$RELEASEFLOW_ROOT/0.1.0-SNAPSHOT.2"
 git_init
 git_commit "initial commit"
 git_commit "second commit"
 
 
-REPO="$SEMVER_ROOT/1.0.1-SNAPSHOT.1"
+REPO="$RELEASEFLOW_ROOT/1.1.0-SNAPSHOT.1"
 git_init
 git_commit "initial commit"
 git_commit "second commit"
 _git branch "release/1.0.x"
 git_commit "vNext commit"
 
-# end setup semver repos
+
+REPO="$RELEASEFLOW_ROOT/1.0.0-rc"
+git_init
+git_commit "initial commit"
+git_commit "second commit"
+_git checkout -b "release/1.0.x"
+
+
+REPO="$RELEASEFLOW_ROOT/1.0.0-rc.1"
+git_init
+git_commit "initial commit"
+git_commit "second commit"
+_git checkout -b "release/1.0.x"
+git_commit "fix the rc"
+
+
+REPO="$RELEASEFLOW_ROOT/1.0.0"
+git_init
+git_commit "initial commit"
+git_commit "second commit"
+_git checkout -b "release/1.0.x"
+git_commit "fix the rc"
+_git tag v1.0.0
+
+
+REPO="$RELEASEFLOW_ROOT/1.0.1-rc.1"
+git_init
+git_commit "initial commit"
+git_commit "second commit"
+_git checkout -b "release/1.0.x"
+git_commit "fix the rc"
+_git tag v1.0.0
+git_commit "patch after release"
+
+# end setup releaseflow repos

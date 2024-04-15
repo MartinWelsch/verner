@@ -7,8 +7,12 @@ edition.workspace = true
 
 [dependencies]
 anyhow = "1.0.80"
-gix = "0.61.0"
+clap = { version = "4.5.4", features = ["derive"] }
+git2 = "0.18.3"
+handlebars = "5.1.2"
 lazy_static = "1.4.0"
+paste = "1.0.14"
 regex = "1.10.3"
-semver = "1.0.20"
+serde = { version = "1.0.197", features = ["derive"] }
+serde_yaml = "0.9.34"
 verner-core = { version = "0.1.0", path = "../verner-core" }
