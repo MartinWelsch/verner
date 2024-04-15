@@ -8,17 +8,9 @@ edition.workspace = true
 [dependencies]
 anyhow = "1.0.75"
 clap = { version = "4.5.4", features = ["derive"] }
-colored = "2.0.4"
 inline_colorization = "0.1.6"
 path-absolutize = "3.1.1"
 serde = { version = "1.0.193", features = ["derive"] }
 serde_yaml = "0.9.27"
-thiserror = "1.0.50"
 verner-core = { version = "0.1.0", path = "../verner-core" }
 verner-git = { version = "0.1.0", path = "../verner-git" }
-
-[profile.release]
-strip = true
-opt-level = "z"
-lto = true
-panic = "abort"
