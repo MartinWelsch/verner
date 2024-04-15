@@ -1,54 +1,14 @@
 #[cfg(test)]
 mod test
 {
-    use std::collections::HashMap;
-
     use anyhow::bail;
     use git2::Repository;
-    use verner_core::semver::{SemVersion, SemVersionInc};
-    use crate::{config::{Config, RawBranchConfig, RawConfig, RawTagConfig}, BranchSolver};
+    use verner_core::semver::SemVersion;
+    use crate::{config::{Config, RawConfig}, BranchSolver};
 
     fn get_config() -> RawConfig
     {
-        RawConfig
-        {
-            tags: HashMap::from([
-                ("release".into(), RawTagConfig
-                {
-                    regex: r#"^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$"#.into(),
-                    version: "$major.$minor.$patch".into()
-                })
-            ]),
-            branches: HashMap::from([
-                ("feature".into(), RawBranchConfig
-                {
-                    regex: r#"^feature/(?<name>.+)$"#.into(),
-                    tag: Some("feat-{{ name }}".into()),
-                    tracked: vec![],
-                    origin: vec!["main".into(), "rc".into()],
-                    base_version: None,
-                    v_next: Some(SemVersionInc::Patch(1))
-                }),
-                ("main".into(), RawBranchConfig
-                {
-                    regex: r#"^main$"#.into(),
-                    tag: Some("SNAPSHOT".into()),
-                    tracked: vec!["release".into()],
-                    origin: vec![],
-                    base_version: Some("0.1.0".into()),
-                    v_next: Some(SemVersionInc::Minor(1))
-                }),
-                ("release".into(), RawBranchConfig
-                {
-                    regex: r#"^release/(?<major>\d+)\.(?<minor>\d+)(?:\.x)?$"#.into(),
-                    tag: Some("rc".into()),
-                    tracked: vec![],
-                    origin: vec!["main".into()],
-                    base_version: Some("$major.$minor.0".into()),
-                    v_next: Some(SemVersionInc::Patch(1))
-                })
-            ]),
-        }
+        crate::preset_config(&crate::cli::ConfigPreset::Releaseflow).unwrap()
     }
 
 
@@ -93,4 +53,5 @@ mod test
     repo_test!(1, 1, 0, "SNAPSHOT", 1);
     repo_test!(1, 0, 0, "", 0);
     repo_test!(1, 0, 1, "rc", 1);
+    repo_test!(1, 0, 0, "fix-patch-something", 1);
 }

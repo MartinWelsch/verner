@@ -3,6 +3,8 @@
 mod config;
 pub mod cli;
 
+use clap::ValueEnum;
+use cli::ConfigPreset;
 pub use config::RawConfig;
 
 use std::{collections::HashMap, path::Path};
@@ -16,8 +18,8 @@ use verner_core::{semver::{SemVersion, SemVersionInc}, VersionInc, VersionOp};
 struct BranchSolver<'a>
 {
     current_branch: &'a BranchMatch<'a>,
-    version_bases: HashMap<Oid, BranchMatch<'a>>,
-    branch_roots: HashMap<Oid, BranchMatch<'a>>,
+    version_bases: HashMap<Oid, SemVersion>,
+    branch_roots: HashMap<Oid, SemVersion>,
     tags: HashMap<Oid, TagMatch<'a>>,
     rev_walk: Revwalk<'a>
 }
@@ -67,7 +69,11 @@ impl<'a> BranchSolver<'a>
                     {
                         let Some(origin_match) = origin_cfg.try_match(&reference)? else { continue };
                         let merge_base = repo.merge_base(branch.top(), origin_match.top())?;
-                        solver.branch_roots.insert(merge_base, branch.clone());
+                        solver.branch_roots.insert(
+                            merge_base,
+                            branch.base_version().map(Clone::clone)
+                                .unwrap_or_else(|| origin_match.base_version().map(Clone::clone)
+                                                        .unwrap_or_else(|| SemVersion::default())));
                     }
                     else
                     {
@@ -81,7 +87,11 @@ impl<'a> BranchSolver<'a>
                     {
                         let Some(tracked_match) = tracked_cfg.try_match(&reference)? else { continue };
                         let merge_base = repo.merge_base(branch.top(), tracked_match.top())?;
-                        solver.version_bases.insert(merge_base, tracked_match);
+
+                        if let Some(tracked_base) = tracked_match.base_version()
+                        {
+                            solver.version_bases.insert(merge_base, tracked_base.clone());
+                        }
                     }
                     else
                     {
@@ -98,17 +108,17 @@ impl<'a> BranchSolver<'a>
     {
         if let Some(tag) = self.tags.get(&id)
         {
-            return VersionInc::HardBasis(tag.version().clone()); // basis since a tagged commit has the tagged version, and the following commits it is vNext
+            return VersionInc::SoftBasis(tag.version().clone()); // basis since a tagged commit has the tagged version, and the following commits it is vNext
         }
 
         if let Some(base) = self.branch_roots.get(&id)
         {
-            return VersionInc::HardBasis(base.base_version().clone()); // hard basis since the branch root is already vNext
+            return VersionInc::HardBasis(base.clone()); // hard basis since the branch root is already vNext
         }
 
         if let Some(base) = self.version_bases.get(&id)
         {
-            return VersionInc::SoftBasis(base.base_version().clone());
+            return VersionInc::SoftBasis(base.clone());
         }
 
         VersionInc::Inc(SemVersionInc::Build(1))
@@ -116,16 +126,12 @@ impl<'a> BranchSolver<'a>
 
     pub fn solve(&mut self) -> Result<SemVersion>
     {
-        let basis = self.current_branch.base_version().clone();
+        let basis = self.current_branch.base_version().map(Clone::clone).unwrap_or_else(|| SemVersion::default());
         let v_next = self.current_branch.config().raw().v_next.clone();
         let tag = self.current_branch.tag();
-        Ok(
-            verner_core::resolve_version(self, basis,  |mut version|
-            {
-                v_next.inspect(|v| version.inc(v));
-                version.with_tag(tag)
-            })?
-        )
+        let mut version = verner_core::resolve_version(self, basis,  v_next)?;
+        if version.build() > 0 { version = version.with_tag(tag); }
+        Ok(version)
     }
 }
 
@@ -158,9 +164,12 @@ pub fn solve(cwd: &Path, cfg: RawConfig, _args: cli::Args) -> anyhow::Result<Sem
     Ok(solver.solve()?)
 }
 
-pub fn default_config() -> Result<RawConfig>
+
+pub fn preset_config(preset: &ConfigPreset) -> Result<RawConfig>
 {
-    Ok(RawConfig
+    Ok(match preset
+    {
+        ConfigPreset::Releaseflow => RawConfig
         {
             tags: HashMap::from([
                 ("release".into(), RawTagConfig
@@ -172,10 +181,19 @@ pub fn default_config() -> Result<RawConfig>
             branches: HashMap::from([
                 ("feature".into(), RawBranchConfig
                 {
-                    regex: r#"^feature/(?<name>.+)$"#.into(),
-                    tag: Some("feat-{{ name }}".into()),
+                    regex: r#"^feat(?:ure)?/(?<name>.+)$"#.into(),
+                    tag: Some("feat-$name".into()),
                     tracked: vec![],
-                    origin: vec!["main".into(), "rc".into()],
+                    origin: vec!["main".into(), "release".into()],
+                    base_version: None,
+                    v_next: Some(SemVersionInc::Patch(1))
+                }),
+                ("fix".into(), RawBranchConfig
+                {
+                    regex: r#"^(?:bux)?fix/(?<name>.+)$"#.into(),
+                    tag: Some("fix-$name".into()),
+                    tracked: vec![],
+                    origin: vec!["main".into(), "release".into()],
                     base_version: None,
                     v_next: Some(SemVersionInc::Patch(1))
                 }),
@@ -195,8 +213,10 @@ pub fn default_config() -> Result<RawConfig>
                     tracked: vec![],
                     origin: vec!["main".into()],
                     base_version: Some("$major.$minor.0".into()),
-                    v_next: None
+                    v_next: Some(SemVersionInc::Patch(1))
                 })
             ]),
-        })
+        },
+    })
 }
+

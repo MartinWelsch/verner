@@ -71,4 +71,14 @@ git_commit "fix the rc"
 _git tag v1.0.0
 git_commit "patch after release"
 
+
+REPO="$RELEASEFLOW_ROOT/1.0.0-fix-patch-something.1"
+git_init
+git_commit "initial commit"
+git_commit "second commit"
+_git checkout -b "release/1.0.x"
+git_commit "fix the rc"
+_git checkout -b "fix/patch-something"
+git_commit "patch try 1"
+
 # end setup releaseflow repos

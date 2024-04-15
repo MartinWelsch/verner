@@ -10,10 +10,10 @@ pub enum VersionInc<Ver, Inc>
     /// increment the version
     Inc(Inc),
 
-    /// override the base version
+    /// jump to this version, the next node continues with vNext
     SoftBasis(Ver),
 
-    /// use this as the version and do not apply vNext
+    /// use this as the version, continue on the current version
     HardBasis(Ver),
 
     /// use this as the version, do not apply vNext and stop further calculations
@@ -35,36 +35,45 @@ pub trait NodeVersionInfo<Inc>
     fn version_effect(&self) -> Inc;
 }
 
-pub fn resolve_version<Ver: VersionOp<Inc> + Display, Inc: Display, F: FnOnce(Ver) -> Ver>(history: &mut HistoryIter<Ver, Inc>, basis: Ver, v_next: F) -> Result<Ver>
+pub fn resolve_version<Ver: VersionOp<Inc> + Display, Inc: Display>(history: &mut HistoryIter<Ver, Inc>, basis: Ver, v_next: Option<Inc>) -> Result<Ver>
 {
     let mut version = basis;
     let mut incs: Vec<Inc> = Default::default();
 
+    let mut count = 0;
+
     while let Some(inc) = history.next()
     {
-        match inc?
+        let inc = inc?;
+
+        match inc
         {
             VersionInc::Inc(add) =>
             {
                 incs.push(add);
             },
-            VersionInc::SoftBasis(hard_basis) =>
-            {
-                version = hard_basis;
-                version = v_next(version);
-                break;
-            },
-            VersionInc::HardBasis(soft_basis) =>
+            VersionInc::SoftBasis(soft_basis) =>
             {
                 version = soft_basis;
+                if count > 0
+                {
+                    v_next.inspect(|i|version.inc(i));
+                }
+                break;
+            },
+            VersionInc::HardBasis(hard_basis) =>
+            {
+                version = hard_basis;
                 break;
             },
             VersionInc::Fixed(fix) =>
             {
                 return Ok(fix);
             },
-            VersionInc::Skip => {},
+            VersionInc::Skip => { },
         }
+
+        count += 1;
     }
 
     for i in incs.as_slice()

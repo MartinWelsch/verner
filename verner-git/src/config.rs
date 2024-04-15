@@ -106,7 +106,7 @@ pub struct BranchMatch<'a>
     config: &'a BranchConfig,
     tag: Option<String>,
     top: Oid,
-    base_version: SemVersion
+    base_version: Option<SemVersion>
 }
 impl<'a> BranchMatch<'a> {
     fn create(top: Oid, captures: regex::Captures<'_>, config: &'a BranchConfig) -> anyhow::Result<Self>
@@ -124,13 +124,13 @@ impl<'a> BranchMatch<'a> {
             let mut base_version_str = String::new();
             captures.expand(&template, &mut base_version_str);
             let Some(parsed) = SemVersion::parse(&base_version_str) else { bail!("'{base_version_str}' is an invalid version string"); };
-            parsed
+            Some(parsed)
         }
-        else { SemVersion::default() };
+        else { None };
         
         if let Some(ref tag) = tag
         {
-            base_version = base_version.with_tag(Some(tag));
+            base_version = base_version.map(|v|v.with_tag(Some(tag)));
         }
 
         Ok(Self
@@ -155,8 +155,8 @@ impl<'a> BranchMatch<'a> {
         self.tag.as_ref().map(|x| x.as_str())
     }
     
-    pub fn base_version(&self) -> &SemVersion {
-        &self.base_version
+    pub fn base_version(&self) -> Option<&SemVersion> {
+        self.base_version.as_ref()
     }
 }
 

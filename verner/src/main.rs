@@ -2,9 +2,11 @@ use std::{fs, path::{Path, PathBuf}};
 
 use anyhow::bail;
 use clap::{Parser, Subcommand, ValueEnum};
+use config::RawConfig;
 use console::Console;
 use path_absolutize::Absolutize;
 use verner_core::output::LogLevel;
+use verner_git::cli::ConfigPreset;
 
 mod console;
 mod config;
@@ -33,14 +35,14 @@ enum Subcommands
 #[derive(Parser, Debug)]
 struct InitArgs
 {
-    #[arg()]
+    #[command(subcommand)]
     r#type: InitType,
 }
 
-#[derive(Debug, ValueEnum, Clone)]
+#[derive(Debug, Subcommand, Clone)]
 enum InitType
 {
-    Git
+    Git{ preset: ConfigPreset }
 }
 
 fn main()
@@ -80,7 +82,8 @@ fn run(console: &Console, args: Args) -> anyhow::Result<()>
     {
         Subcommands::Git(git) => 
         {
-            let config = read_config(&config_path)?;
+
+            let config = if let Some(ref preset) = git.config_preset { RawConfig { git: verner_git::preset_config(preset)? } } else { read_config(&config_path)? };
             let version = verner_git::solve(&cwd, config.git, git)?;
             
             console.user_line(LogLevel::Info, format!("Version: {version}"));
@@ -97,9 +100,9 @@ fn run(console: &Console, args: Args) -> anyhow::Result<()>
 
             let config = match init.r#type
             {
-                InitType::Git => config::RawConfig
+                InitType::Git{ ref preset } => config::RawConfig
                 {
-                    git: verner_git::default_config()?
+                    git: verner_git::preset_config(preset)?
                 },
             };
 

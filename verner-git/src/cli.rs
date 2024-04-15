@@ -1,10 +1,18 @@
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
+
 
 
 #[derive(Debug, Parser)]
 pub struct Args
 {
-    pub path: Option<PathBuf>,
+    #[arg(long = "preset", short = 'p', default_value = None)]
+    pub config_preset: Option<ConfigPreset>
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum ConfigPreset
+{
+    Releaseflow
 }
