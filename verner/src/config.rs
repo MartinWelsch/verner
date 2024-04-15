@@ -1,15 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use anyhow::Result;
 
 #[derive(Serialize, Deserialize)]
-pub struct Config
+pub struct RawConfig
 {
-    #[cfg(feature = "git")]
-    pub git: crate::git::Config
-}
-
-pub fn from_yaml(yml: &str) -> Result<Config>
-{
-    Ok(serde_yaml::from_str::<Config>(yml)?)
+    pub git: verner_git::RawConfig,
 }
