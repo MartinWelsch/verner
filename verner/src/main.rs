@@ -75,7 +75,7 @@ fn read_config(path: &Path) -> anyhow::Result<config::RawConfig>
 fn run(console: &Console, args: Args) -> anyhow::Result<()>
 {
     let cwd = args.path.absolutize()?;
-    let config_path = cwd.join(args.config_file);
+    let config_path = if args.config_file.is_absolute() { args.config_file } else { cwd.join(args.config_file) };
     let config_path = config_path.absolutize()?;
 
     match args.command.unwrap_or_else(|| Subcommands::Git(verner_git::cli::Args::parse()))
@@ -92,10 +92,10 @@ fn run(console: &Console, args: Args) -> anyhow::Result<()>
         Subcommands::Init(init) => 
         {
 
-            if cwd.exists()
+            if config_path.exists()
             {
                 console.user_line(LogLevel::Error, format!("cannot overwrite existing config file"));
-                bail!("file {} already exists", cwd.to_string_lossy());
+                bail!("file {} already exists", config_path.to_string_lossy());
             }
 
             let config = match init.r#type
@@ -106,8 +106,8 @@ fn run(console: &Console, args: Args) -> anyhow::Result<()>
                 },
             };
 
-            fs::write(&cwd, serde_yaml::to_string(&config)?)?;
-            console.user_line(LogLevel::Success, format!("initialized configuration to {}", cwd.to_string_lossy()));
+            fs::write(&config_path, serde_yaml::to_string(&config)?)?;
+            console.user_line(LogLevel::Success, format!("initialized configuration to {}", config_path.to_string_lossy()));
 
         },
     };
