@@ -1,7 +1,7 @@
 use std::{fs, path::{Path, PathBuf}};
 
 use anyhow::bail;
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 use config::RawConfig;
 use console::Console;
 use path_absolutize::Absolutize;
@@ -84,7 +84,7 @@ fn run(console: &Console, args: Args) -> anyhow::Result<()>
         {
 
             let config = if let Some(ref preset) = git.config_preset { RawConfig { git: verner_git::preset_config(preset)? } } else { read_config(&config_path)? };
-            let version = verner_git::solve(&cwd, config.git, git)?;
+            let version = verner_git::solve(console, &cwd, config.git, git)?;
             
             console.user_line(LogLevel::Info, format!("Version: {version}"));
             console.output(version);

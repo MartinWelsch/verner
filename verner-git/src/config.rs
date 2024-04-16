@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::bail;
-use git2::{Oid, Reference};
+use git2::Oid;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use verner_core::semver::{SemVersion, SemVersionInc};
@@ -33,6 +33,7 @@ impl RawBranchConfig {
 #[derive(Serialize, Deserialize)]
 pub struct RawConfig
 {
+    pub tracked_remotes: Vec<String>,
     pub tags: HashMap<String, RawTagConfig>,
     pub branches: HashMap<String, RawBranchConfig>
 }
@@ -44,8 +45,9 @@ impl RawConfig
         Ok(
             Config
             {
+                tracked_remotes: self.tracked_remotes,
                 tags: self.tags.into_iter().map(|(k, v)| v.parse(&k)).collect::<anyhow::Result<Vec<TagConfig>>>()?,
-                branches: self.branches.into_iter().map(|e| e.1.parse(e.0)).collect::<anyhow::Result<Vec<BranchConfig>>>()?
+                branches: self.branches.into_iter().map(|e| e.1.parse(e.0)).collect::<anyhow::Result<Vec<BranchConfig>>>()?,
             }
         )
     }
@@ -78,17 +80,11 @@ impl BranchConfig {
     }
     
 
-    pub fn try_match<'a>(&'a self, r: &Reference) -> anyhow::Result<Option<BranchMatch<'a>>>
+    pub fn try_match<'a>(&'a self, short_name: &str, id: Oid) -> anyhow::Result<Option<BranchMatch<'a>>>
     {
-        if let Some(name) = r.shorthand()
+        if let Some(captures) = self.regex().captures(short_name)
         {
-            if let Some(captures) = self.regex().captures(name)
-            {
-                if let Some(tip) = r.target()
-                {
-                    return Ok(Some(BranchMatch::create(tip, captures, &self)?));
-                }
-            }
+            return Ok(Some(BranchMatch::create(id, captures, &self)?));
         }
 
         Ok(None)
@@ -96,6 +92,7 @@ impl BranchConfig {
 }
 pub struct Config
 {
+    pub tracked_remotes: Vec<String>,
     pub tags: Vec<TagConfig>,
     pub branches: Vec<BranchConfig>
 }
@@ -167,11 +164,12 @@ impl Config
         self.branches.iter().filter(move |e| e.r#type == r#type)
     }
 
-    pub fn find_branch_config_for<'a>(&'a self, r: &Reference) -> anyhow::Result<Option<BranchMatch<'a>>>
+    pub fn try_match_branch<'a>(&'a self, short_name: &str, id: Oid) -> anyhow::Result<Option<BranchMatch<'a>>>
     {
         for c in self.branches.iter()
         {
-            if let Some(m) = c.try_match(r)?
+            
+            if let Some(m) = c.try_match(short_name, id)?
             {
                 return Ok(Some(m));
             }
@@ -180,11 +178,11 @@ impl Config
         Ok(None)
     }
 
-    pub fn find_type_branch_config_for<'a>(&'a self, r: &Reference, r#type: &str) -> anyhow::Result<Option<BranchMatch<'a>>>
+    pub fn find_type_branch_config_for<'a>(&'a self, short_name: &str, id: Oid, r#type: &str) -> anyhow::Result<Option<BranchMatch<'a>>>
     {
         for c in self.branches.iter().filter(|p| p.r#type == r#type)
         {
-            if let Some(m) = c.try_match(r)?
+            if let Some(m) = c.try_match(short_name, id)?
             {
                 return Ok(Some(m));
             }
@@ -196,6 +194,44 @@ impl Config
     pub(crate) fn by_type<'a>(&'a self, r#type: &str) -> Option<&'a BranchConfig>
     {
         self.branches.iter().filter(|e| e.r#type == r#type).next()
+    }
+
+    /// removes the first occurence of "refs/heads/" or "refs/remotes/<tracked_origin>/"
+    /// if nothing could be removed `ref_name` is returned
+    pub fn reference_name_to_branch_name<'a>(&self, ref_name: &'a str) -> &'a str
+    {
+        let mut result = ref_name;
+        let mut pattern = String::from("refs/heads/");
+
+        let mut try_remove = |pat: &str|
+        {
+            let pre_len = result.len();
+            result = result.trim_start_matches(&pat);
+            result.len() < pre_len
+        };
+
+        // remove "refs/heads"
+        if try_remove(&pattern)
+        {
+            return result;
+        }
+
+        // remove "refs/remotes/<origin>/"
+        for origin in self.tracked_remotes.iter()
+        {
+            pattern.clear();
+            pattern.push_str("refs/remotes/");
+            pattern.push_str(&origin);
+            pattern.push('/');
+
+            if try_remove(&pattern)
+            {
+                return result;
+            }
+        }
+
+        // nothing was removed, return unchanged
+        result
     }
 }
 

@@ -84,9 +84,10 @@ git_commit "patch try 1"
 REPO="$RELEASEFLOW_ROOT/0.1.0-feat-detached-head.1"
 git_init
 git_commit "initial commit"
-git_commit "feature commit"
-_git update-ref "refs/remotes/origin/feature/detached-head" HEAD
 _git checkout --detach
 _git branch -d "main"
+_git update-ref "refs/remotes/origin/main" HEAD
+git_commit "feature commit"
+_git update-ref "refs/remotes/origin/feature/detached-head" HEAD
 
 # end setup releaseflow repos

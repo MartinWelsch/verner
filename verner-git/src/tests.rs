@@ -1,10 +1,16 @@
 #[cfg(test)]
 mod test
 {
-    use anyhow::bail;
-    use git2::Repository;
-    use verner_core::semver::SemVersion;
-    use crate::{config::{Config, RawConfig}, BranchSolver};
+    use verner_core::{output::ConsoleWriter, semver::SemVersion};
+    use crate::{config::RawConfig, solve};
+
+    struct NullWriter;
+    impl ConsoleWriter for NullWriter
+    {
+        fn user_line<D: std::fmt::Display>(&self, _level: verner_core::output::LogLevel, _d: D) {}
+        fn output<D: std::fmt::Display>(&self, _d: D) {}
+    }
+
 
     fn get_config() -> RawConfig
     {
@@ -15,19 +21,18 @@ mod test
     fn solve_repo_version(repo_name: &str) -> anyhow::Result<SemVersion>
     {
         let cfg = get_config();
-        let cfg: Config = cfg.parse()?;
-        let repo = Repository::open(std::env::current_dir()?.join(format!("../test_data/releaseflow/{repo_name}")))?;
-        let head = repo.head()?;
-        let current_branch = cfg.find_branch_config_for(&head)?;
+        let git_dir = std::env::current_dir()?.join(format!("../test_data/releaseflow/{repo_name}"));
+        let null_writer = NullWriter;
 
-        if current_branch.is_none()
+        let ver = solve(&null_writer, &git_dir.clone(), cfg, crate::cli::Args
         {
-            bail!("current branch could not be matched to any configured branch");
-        }
+            config_preset: None,
+            use_local: false,
+            branch_name: None,
+            git_dir: Some(git_dir)
+        })?;
 
-        let current_branch = current_branch.unwrap();
-        let mut solver = BranchSolver::new(&cfg, &repo, &current_branch)?;
-        Ok(solver.solve()?)
+        Ok(ver)
     }
 
     macro_rules! repo_test {

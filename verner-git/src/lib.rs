@@ -3,7 +3,6 @@
 mod config;
 pub mod cli;
 
-use clap::ValueEnum;
 use cli::ConfigPreset;
 pub use config::RawConfig;
 
@@ -12,7 +11,7 @@ use std::{collections::HashMap, path::Path};
 use anyhow::{bail, Result};
 use config::{BranchMatch, Config, RawBranchConfig, RawTagConfig, TagMatch};
 use git2::{Oid, Reference, Repository, Revwalk};
-use verner_core::{semver::{SemVersion, SemVersionInc}, VersionInc, VersionOp};
+use verner_core::{output::{ConsoleWriter, LogLevel}, semver::{SemVersion, SemVersionInc}, VersionInc};
 
 
 struct BranchSolver<'a>
@@ -59,15 +58,17 @@ impl<'a> BranchSolver<'a>
                 let tag_match = tag_match?;
                 solver.tags.insert(id, tag_match);
             }
-
-            if reference.is_branch()
+            else
             {
                 // find start of the current branch
                 for origin in branch.config().raw().origin.iter()
                 {
                     if let Some(origin_cfg) = cfg.by_type(origin)
                     {
-                        let Some(origin_match) = origin_cfg.try_match(&reference)? else { continue };
+                        let Some(name) = reference.name() else { continue; };
+                        let name = &cfg.reference_name_to_branch_name(name);
+                        let Some(target) = reference.target() else { continue; };
+                        let Some(origin_match) = origin_cfg.try_match(name, target)? else { continue };
                         let merge_base = repo.merge_base(branch.tip(), origin_match.tip())?;
                         solver.branch_roots.insert(
                             merge_base,
@@ -85,7 +86,10 @@ impl<'a> BranchSolver<'a>
                 {
                     if let Some(tracked_cfg) = cfg.by_type(tracked)
                     {
-                        let Some(tracked_match) = tracked_cfg.try_match(&reference)? else { continue };
+                        let Some(name) = reference.name() else { continue; };
+                        let name = &cfg.reference_name_to_branch_name(name);
+                        let Some(target) = reference.target() else { continue; };
+                        let Some(tracked_match) = tracked_cfg.try_match(name, target)? else { continue };
                         let merge_base = repo.merge_base(branch.tip(), tracked_match.tip())?;
 
                         if let Some(tracked_base) = tracked_match.base_version()
@@ -154,16 +158,78 @@ impl<'a> Iterator for BranchSolver<'a>
     
 }
 
-// fn resolve_current_branch(repo: &Repository) -> anyhow::Result<Reference>
-// {
+fn resolve_current_branch<'repo, C: ConsoleWriter>(c: &C, cfg: &Config, repo: &'repo Repository) -> anyhow::Result<Reference<'repo>>
+{
+    let head = repo.head()?;
+    if repo.head_detached()?
+    {
+        c.user_line(LogLevel::Info, "HEAD is detached");
 
-// }
+        let Some(head_id) = head.target() else { bail!("Head does not point to a commit") };
+        let mut found = Vec::new();
 
-pub fn solve(cwd: &Path, cfg: RawConfig, _args: cli::Args) -> anyhow::Result<SemVersion>
+        for b in repo.branches(None)?
+        {
+            let b = b?;
+            let r = b.0.into_reference();
+            let Some(id) = r.target() else { continue; };
+            let Some(name) = r.name() else { continue; };
+            if head_id == id
+            {
+                c.user_line(LogLevel::Info, format!("found reference {name}"));
+                found.push(r);
+            }
+        }
+
+        if found.len() == 1
+        {
+            let found = found.into_iter().next().unwrap();
+            let Some(name) = found.name() else { bail!("Branch has no name") };
+            let name = cfg.reference_name_to_branch_name(name);
+            c.user_line(LogLevel::Info, format!("Using branch {}", name));
+            return Ok(found);
+        }
+        else
+        {
+            c.user_line(LogLevel::Error, format!("Found {} branches pointing to {head_id}. Try specifying the branch explicitly.", found.len()));
+            bail!("found multiple references pointing to {head_id}");
+        }
+    }
+    else
+    {
+        Ok(head)
+    }
+}
+
+pub fn solve<C: ConsoleWriter + 'static>(c: &C, cwd: &Path, cfg: RawConfig, args: cli::Args) -> anyhow::Result<SemVersion>
 {
     let cfg = cfg.parse()?;
-    let repo = git2::Repository::discover(cwd)?;
-    let Some(branch) = cfg.find_branch_config_for(&repo.head()?)? else { bail!("could not resolve HEAD or current branch is not configured") };
+    let repo = args.git_dir.map_or_else(||git2::Repository::discover(cwd), |git_dir|git2::Repository::open(git_dir))?;
+
+    let branch =
+    if let Some(branch_name) = args.branch_name
+    {
+        match repo.find_branch(&branch_name, git2::BranchType::Local)
+        {
+            Ok(b) => b.into_reference(),
+            Err(_) => match repo.find_branch(&branch_name, git2::BranchType::Remote)
+            {
+                Ok(b) => b.into_reference(),
+                Err(_) => bail!("Could not find branch {branch_name} in remote or local"),
+            },
+        }
+    }
+    else
+    {
+        resolve_current_branch(c, &cfg, &repo)?
+    };
+
+    let Some(name) = branch.name() else { bail!("branch has no name") };
+    let Some(target) = branch.target() else { bail!("branch has no target") };
+
+    let name = cfg.reference_name_to_branch_name(name);
+
+    let Some(branch) = cfg.try_match_branch(name, target)? else { bail!("could not resolve HEAD or current branch is not configured") };
     let mut solver = BranchSolver::new(&cfg, &repo, &branch)?;
     Ok(solver.solve()?)
 }
@@ -175,6 +241,7 @@ pub fn preset_config(preset: &ConfigPreset) -> Result<RawConfig>
     {
         ConfigPreset::Releaseflow => RawConfig
         {
+            tracked_remotes: vec![ "origin".into() ],
             tags: HashMap::from([
                 ("release".into(), RawTagConfig
                 {
