@@ -2,7 +2,7 @@ parameters:
   - name: version
     displayName: Version
     type: string
-    default: '0.1.1'
+    default: '0.1.3'
 
 
 steps:
