@@ -84,9 +84,9 @@ impl BranchConfig {
         {
             if let Some(captures) = self.regex().captures(name)
             {
-                if let Some(top) = r.target()
+                if let Some(tip) = r.target()
                 {
-                    return Ok(Some(BranchMatch::create(top, captures, &self)?));
+                    return Ok(Some(BranchMatch::create(tip, captures, &self)?));
                 }
             }
         }
@@ -105,11 +105,11 @@ pub struct BranchMatch<'a>
 {
     config: &'a BranchConfig,
     tag: Option<String>,
-    top: Oid,
+    tip: Oid,
     base_version: Option<SemVersion>
 }
 impl<'a> BranchMatch<'a> {
-    fn create(top: Oid, captures: regex::Captures<'_>, config: &'a BranchConfig) -> anyhow::Result<Self>
+    fn create(tip: Oid, captures: regex::Captures<'_>, config: &'a BranchConfig) -> anyhow::Result<Self>
     {
         let tag = if let Some(ref tag_template) = config.raw.tag
         {
@@ -135,7 +135,7 @@ impl<'a> BranchMatch<'a> {
 
         Ok(Self
         {
-            top,
+            tip,
             config,
             tag,
             base_version
@@ -143,8 +143,8 @@ impl<'a> BranchMatch<'a> {
     }
     
     
-    pub fn top(&self) -> Oid {
-        self.top
+    pub fn tip(&self) -> Oid {
+        self.tip
     }
     
     pub fn config(&self) -> &BranchConfig {

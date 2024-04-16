@@ -54,4 +54,5 @@ mod test
     repo_test!(1, 0, 0, "", 0);
     repo_test!(1, 0, 1, "rc", 1);
     repo_test!(1, 0, 0, "fix-patch-something", 1);
+    repo_test!(0, 1, 0, "feat-detached-head", 1);
 }

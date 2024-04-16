@@ -14,3 +14,6 @@ serde = { version = "1.0.193", features = ["derive"] }
 serde_yaml = "0.9.27"
 verner-core = { version = "0.1.0", path = "../verner-core" }
 verner-git = { version = "0.1.0", path = "../verner-git" }
+
+[profile.release]
+strip = "debuginfo"

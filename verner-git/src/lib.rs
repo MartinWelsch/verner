@@ -11,7 +11,7 @@ use std::{collections::HashMap, path::Path};
 
 use anyhow::{bail, Result};
 use config::{BranchMatch, Config, RawBranchConfig, RawTagConfig, TagMatch};
-use git2::{Oid, Repository, Revwalk};
+use git2::{Oid, Reference, Repository, Revwalk};
 use verner_core::{semver::{SemVersion, SemVersionInc}, VersionInc, VersionOp};
 
 
@@ -36,7 +36,7 @@ impl<'a> BranchSolver<'a>
         }
 
         let mut rev_walk = repo.revwalk()?;
-        rev_walk.push(branch.top())?;
+        rev_walk.push(branch.tip())?;
 
         let mut solver = Self
         {
@@ -68,7 +68,7 @@ impl<'a> BranchSolver<'a>
                     if let Some(origin_cfg) = cfg.by_type(origin)
                     {
                         let Some(origin_match) = origin_cfg.try_match(&reference)? else { continue };
-                        let merge_base = repo.merge_base(branch.top(), origin_match.top())?;
+                        let merge_base = repo.merge_base(branch.tip(), origin_match.tip())?;
                         solver.branch_roots.insert(
                             merge_base,
                             branch.base_version().map(Clone::clone)
@@ -86,7 +86,7 @@ impl<'a> BranchSolver<'a>
                     if let Some(tracked_cfg) = cfg.by_type(tracked)
                     {
                         let Some(tracked_match) = tracked_cfg.try_match(&reference)? else { continue };
-                        let merge_base = repo.merge_base(branch.top(), tracked_match.top())?;
+                        let merge_base = repo.merge_base(branch.tip(), tracked_match.tip())?;
 
                         if let Some(tracked_base) = tracked_match.base_version()
                         {
@@ -154,6 +154,10 @@ impl<'a> Iterator for BranchSolver<'a>
     
 }
 
+// fn resolve_current_branch(repo: &Repository) -> anyhow::Result<Reference>
+// {
+
+// }
 
 pub fn solve(cwd: &Path, cfg: RawConfig, _args: cli::Args) -> anyhow::Result<SemVersion>
 {
