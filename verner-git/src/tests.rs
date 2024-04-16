@@ -28,7 +28,8 @@ mod test
         {
             config_preset: None,
             use_local: false,
-            branch_name: None,
+            use_ref: None,
+            override_branch_name: None,
             git_dir: Some(git_dir)
         })?;
 

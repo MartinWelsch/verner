@@ -206,30 +206,34 @@ pub fn solve<C: ConsoleWriter + 'static>(c: &C, cwd: &Path, cfg: RawConfig, args
     let cfg = cfg.parse()?;
     let repo = args.git_dir.map_or_else(||git2::Repository::discover(cwd), |git_dir|git2::Repository::open(git_dir))?;
 
-    let branch =
-    if let Some(branch_name) = args.branch_name
+    let branch_map_from_ref = |r: Reference|
     {
-        match repo.find_branch(&branch_name, git2::BranchType::Local)
-        {
-            Ok(b) => b.into_reference(),
-            Err(_) => match repo.find_branch(&branch_name, git2::BranchType::Remote)
-            {
-                Ok(b) => b.into_reference(),
-                Err(_) => bail!("Could not find branch {branch_name} in remote or local"),
-            },
-        }
+        let Some(name) = r.name() else { bail!("branch has no name") };
+        let Some(target) = r.target() else { bail!("branch has no target") };
+
+        let name = cfg.reference_name_to_branch_name(name);
+
+        let Some(branch) = cfg.try_match_branch(name, target)? else { bail!("could not resolve HEAD or current branch is not configured") };
+        Ok(branch)
+    };
+
+    let branch =
+    if let Some(ref_name) = args.use_ref
+    {
+        branch_map_from_ref(repo.find_reference(&ref_name)?)?
+    }
+    else if let Some(override_branch_name) = args.override_branch_name
+    {
+        let Some(head_id) = repo.head()?.target() else { bail!("HEAD does not point to a commit") };
+        let Some(m) = cfg.try_match_branch(&override_branch_name, head_id)? else { bail!("{override_branch_name} does not match any configured branch type") };
+        m
     }
     else
     {
-        resolve_current_branch(c, &cfg, &repo)?
+        branch_map_from_ref(resolve_current_branch(c, &cfg, &repo)?)?
     };
 
-    let Some(name) = branch.name() else { bail!("branch has no name") };
-    let Some(target) = branch.target() else { bail!("branch has no target") };
-
-    let name = cfg.reference_name_to_branch_name(name);
-
-    let Some(branch) = cfg.try_match_branch(name, target)? else { bail!("could not resolve HEAD or current branch is not configured") };
+    
     let mut solver = BranchSolver::new(&cfg, &repo, &branch)?;
     Ok(solver.solve()?)
 }
