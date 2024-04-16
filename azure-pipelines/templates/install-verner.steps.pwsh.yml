@@ -1,0 +1,39 @@
+parameters:
+  - name: version
+    displayName: Version
+    type: string
+    default: '0.1.1'
+
+
+steps:
+- pwsh: |
+    $toolDir = "$(Agent.ToolsDirectory)/repo-version-tool/${{ parameters.version }}/x64"
+    $toolExists = Test-Path -Path "$($toolDir).complete"
+    Write-Host "Is verner already installed? $(if($toolExists){"yes."}else{"no."})"
+
+    # add verner to path
+    Write-Host "##vso[task.prependpath]$toolDir"
+
+    if ($toolExists)
+    {
+      # already installed, we are done here
+      Write-Host "The command `verner` is now available"
+      exit 0
+    }
+
+    $toolFileName = if($isWindows) { "verner.exe" } else { "verner" }
+    $absToolPath = "$toolDir/$toolFileName"
+
+    # create the direcory
+    New-Item -ItemType Directory -Force -Path "$toolDir"
+    
+    # download the executable
+    Invoke-WebRequest "https://github.com/MartinWelsch/verner/releases/download/v${{ parameters.version }}/$toolFileName" -OutFile "$absToolPath"
+    if(Test-Path -Path "$absToolPath") {
+      New-Item -Path "$($toolDir).complete" -ItemType File
+    }
+
+    Write-Host "Successfully installed verner to $absToolPath"
+    Write-Host "The command `verner` is now available"
+  name: jobInstallVernerTool
+  displayName: Install verner
