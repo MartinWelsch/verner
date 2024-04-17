@@ -1,4 +1,4 @@
-use std::{fs, path::{Path, PathBuf}};
+use std::{fs, path::{Path, PathBuf}, process::ExitCode};
 
 use anyhow::bail;
 use clap::{Parser, Subcommand};
@@ -45,17 +45,21 @@ enum InitType
     Git{ preset: ConfigPreset }
 }
 
-fn main()
+fn main() -> ExitCode 
 {
     let args = Args::parse();
     let console = Console::default();
 
     match run(&console, args)
     {
-        Ok(_) => console.user_line(LogLevel::Success, "command successful"),
+        Ok(_) => {
+            console.user_line(LogLevel::Success, "command successful");
+            ExitCode::SUCCESS
+        },
         Err(err) =>
         {
-            console.user_line(LogLevel::Error, format!("an error occurred: {err}"))
+            console.user_line(LogLevel::Error, format!("an error occurred: {err}"));
+            ExitCode::FAILURE
         },
     }
 }
