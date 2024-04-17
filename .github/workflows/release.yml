@@ -19,10 +19,11 @@ jobs:
       run: |
         sudo apt install -y \
           mingw-w64
+          musl-tools
 
     - name: Prepare rust targets
       run: |
-        rustup target add x86_64-unknown-linux-gnu
+        rustup target add x86_64-unknown-linux-musl
         rustup target add x86_64-pc-windows-gnu
       
     - name: Prepare verner-git tests
@@ -35,7 +36,7 @@ jobs:
       run: cargo test --release --verbose
       
     - name: Build verner - Linux
-      run: cargo build --bin verner --release --verbose --target x86_64-unknown-linux-gnu
+      run: cargo build --bin verner --release --verbose --target x86_64-unknown-linux-musl
     
     - name: Build verner - Windows
       run: cargo build --bin verner --release --verbose --target x86_64-pc-windows-gnu
@@ -46,13 +47,13 @@ jobs:
         name: verner
         if-no-files-found: error
         path: |
-          target/x86_64-unknown-linux-gnu/release/verner
+          target/x86_64-unknown-linux-musl/release/verner
           target/x86_64-pc-windows-gnu/release/verner.exe
 
     - name: Release
       uses: softprops/action-gh-release@v2
       with:
         files: |
-          target/x86_64-unknown-linux-gnu/release/verner
+          target/x86_64-unknown-linux-musl/release/verner
           target/x86_64-pc-windows-gnu/release/verner.exe
               
