@@ -6,15 +6,43 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use verner_core::semver::{SemVersion, SemVersionInc};
 
+use crate::cli::ConfigPreset;
+
 #[derive(Serialize, Deserialize)]
 pub struct RawBranchConfig
 {
+    /// regex that matches branch short names (excluding origin)
     pub regex: String,
-    pub tag: Option<String>,
+
+    /// label that is added to the version if solving for this branch
+    #[serde(default)]
+    #[serde(skip_serializing_if="Option::is_none")]
+    pub label: Option<String>,
+
+    /// the base version of this branch
+    #[serde(default)]
+    #[serde(skip_serializing_if="Option::is_none")]
     pub base_version: Option<String>,
+
+    /// list of tracked branches that influence the version on the current branch
+    #[serde(default)]
+    #[serde(skip_serializing_if="Vec::is_empty")]
     pub tracked: Vec<String>,
-    pub origin: Vec<String>,
-    pub v_next: Option<SemVersionInc>
+
+    /// list of all possible source branches
+    #[serde(default)]
+    #[serde(skip_serializing_if="Vec::is_empty")]
+    pub sources: Vec<String>,
+    
+    /// vNext rule for the current branch - what is incremented after sovling the base version?
+    #[serde(default)]
+    #[serde(skip_serializing_if="Option::is_none")]
+    pub v_next: Option<SemVersionInc>,
+
+    /// max soving depth
+    #[serde(default)]
+    #[serde(skip_serializing_if="Option::is_none")]
+    pub max_depth: Option<u32>
 }
 impl RawBranchConfig {
     fn parse(self, r#type: String) -> anyhow::Result<BranchConfig> {
@@ -33,8 +61,17 @@ impl RawBranchConfig {
 #[derive(Serialize, Deserialize)]
 pub struct RawConfig
 {
+    /// list of all remotes to consider
+    #[serde(default)]
+    #[serde(skip_serializing_if="Vec::is_empty")]
     pub tracked_remotes: Vec<String>,
+
+    /// list of tags to parse
+    #[serde(default)]
+    #[serde(skip_serializing_if="HashMap::is_empty")]
     pub tags: HashMap<String, RawTagConfig>,
+    
+    /// branch configurations
     pub branches: HashMap<String, RawBranchConfig>
 }
 
@@ -80,11 +117,11 @@ impl BranchConfig {
     }
     
 
-    pub fn try_match<'a>(&'a self, short_name: &str, id: Oid) -> anyhow::Result<Option<BranchMatch<'a>>>
+    pub fn try_match<'a>(&'a self, short_name: &str, tip: Oid) -> anyhow::Result<Option<BranchMatch<'a>>>
     {
         if let Some(captures) = self.regex().captures(short_name)
         {
-            return Ok(Some(BranchMatch::create(id, captures, &self)?));
+            return Ok(Some(BranchMatch::create(tip, captures, &self)?));
         }
 
         Ok(None)
@@ -108,7 +145,7 @@ pub struct BranchMatch<'a>
 impl<'a> BranchMatch<'a> {
     fn create(tip: Oid, captures: regex::Captures<'_>, config: &'a BranchConfig) -> anyhow::Result<Self>
     {
-        let tag = if let Some(ref tag_template) = config.raw.tag
+        let tag = if let Some(ref tag_template) = config.raw.label
         {
             let mut t = String::new();
             captures.expand(tag_template, &mut t);
@@ -127,7 +164,7 @@ impl<'a> BranchMatch<'a> {
         
         if let Some(ref tag) = tag
         {
-            base_version = base_version.map(|v|v.with_tag(Some(tag)));
+            base_version = base_version.map(|v|v.with_tag(Some(tag.into())));
         }
 
         Ok(Self
@@ -291,3 +328,65 @@ impl<'a> TagMatch<'a> {
         &self.version
     }
 }
+
+
+pub fn preset_config(preset: &ConfigPreset) -> anyhow::Result<RawConfig>
+{
+    Ok(match preset
+    {
+        ConfigPreset::Releaseflow => RawConfig
+        {
+            tracked_remotes: vec![ "origin".into() ],
+            tags: HashMap::from([
+                ("release".into(), RawTagConfig
+                {
+                    regex: r#"^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$"#.into(),
+                    version: "$major.$minor.$patch".into()
+                })
+            ]),
+            branches: HashMap::from([
+                ("feature".into(), RawBranchConfig
+                {
+                    regex: r#"^feat(?:ure)?/(?<name>.+)$"#.into(),
+                    label: Some("feat-$name".into()),
+                    tracked: vec![],
+                    sources: vec!["main".into(), "release".into()],
+                    base_version: None,
+                    v_next: None,
+                    max_depth: None
+                }),
+                ("fix".into(), RawBranchConfig
+                {
+                    regex: r#"^(?:bux)?fix/(?<name>.+)$"#.into(),
+                    label: Some("fix-$name".into()),
+                    tracked: vec![],
+                    sources: vec!["main".into(), "release".into()],
+                    base_version: None,
+                    v_next: None,
+                    max_depth: None
+                }),
+                ("main".into(), RawBranchConfig
+                {
+                    regex: r#"^main$"#.into(),
+                    label: Some("SNAPSHOT".into()),
+                    tracked: vec!["release".into()],
+                    sources: vec![],
+                    base_version: Some("0.1.0".into()),
+                    v_next: Some(SemVersionInc::Minor(1)),
+                    max_depth: None
+                }),
+                ("release".into(), RawBranchConfig
+                {
+                    regex: r#"^release/(?<major>\d+)\.(?<minor>\d+)(?:\.x)?$"#.into(),
+                    label: Some("rc".into()),
+                    tracked: vec![],
+                    sources: vec!["main".into()],
+                    base_version: Some("$major.$minor.0".into()),
+                    v_next: Some(SemVersionInc::Patch(1)),
+                    max_depth: None
+                })
+            ]),
+        },
+    })
+}
+

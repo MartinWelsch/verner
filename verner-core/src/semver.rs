@@ -39,7 +39,7 @@ impl SemVersion
         None
     }
 
-    pub fn with_tag(&self, tag: Option<&str>) -> SemVersion
+    pub fn with_tag(&self, tag: Option<String>) -> SemVersion
     {
         let mut v = self.clone();
         v.tag = tag.map(|tag| Rc::new(Box::new(tag.to_string())));
@@ -64,6 +64,12 @@ impl SemVersion
     
     pub fn tag(&self) -> Option<Rc<Box<String>>> {
         self.tag.clone()
+    }
+    
+    pub fn erase_build(&self) -> Self {
+        let mut v = self.clone();
+        v.build = 0;
+        return v;
     }
 }
 
