@@ -13,18 +13,43 @@ use git2::{Oid, Reference, Repository, Revwalk};
 use verner_core::{output::{ConsoleWriter, LogLevel}, semver::{SemVersion, SemVersionInc}, VersionInc};
 
 
+struct BranchSolveContext
+{
+    depth: u32,
+    max_depth: u32
+}
+
+impl BranchSolveContext
+{
+    pub fn try_descend(&self) -> Option<Self>
+    {
+        if self.depth == self.max_depth
+        {
+            None
+        }
+        else
+        {
+            Some(Self
+            {
+                depth: self.depth + 1,
+                max_depth: self.max_depth
+            })
+        }
+    }
+}
+
 struct BranchSolver<'a>
 {
-    current_branch: &'a BranchMatch<'a>,
+    current_branch: BranchMatch<'a>,
     version_bases: HashMap<Oid, SemVersion>,
-    branch_roots: HashMap<Oid, SemVersion>,
+    branch_roots: HashMap<Oid, Option<BranchSolver<'a>>>,
     tags: HashMap<Oid, TagMatch<'a>>,
     rev_walk: Revwalk<'a>
 }
 
 impl<'a> BranchSolver<'a>
 {
-    pub fn new(cfg: &'a Config, repo: &'a Repository, branch: &'a BranchMatch) -> Result<Self>
+    pub fn new(ctx: BranchSolveContext, cfg: &'a Config, repo: &'a Repository, branch: BranchMatch<'a>) -> Result<Self>
     {
         let mut branches = Vec::new();
         for b in repo.branches(Some(git2::BranchType::Local))?
@@ -38,7 +63,7 @@ impl<'a> BranchSolver<'a>
 
         let mut solver = Self
         {
-            current_branch: branch,
+            current_branch: branch.clone(),
             version_bases: Default::default(),
             branch_roots: Default::default(),
             rev_walk,
@@ -66,14 +91,14 @@ impl<'a> BranchSolver<'a>
                     {
                         let Some(name) = reference.name() else { continue; };
                         let name = &cfg.reference_name_to_branch_name(name);
-                        let Some(target) = reference.target() else { continue; };
-                        let Some(origin_match) = origin_cfg.try_match(name, target)? else { continue };
-                        let merge_base = repo.merge_base(branch.tip(), origin_match.tip())?;
-                        solver.branch_roots.insert(
-                            merge_base,
-                            branch.base_version().map(Clone::clone)
-                                .unwrap_or_else(|| origin_match.base_version().map(Clone::clone)
-                                                        .unwrap_or_else(|| SemVersion::default())));
+                        let Some(tip) = reference.target() else { continue; };
+                        let merge_base = repo.merge_base(branch.tip(), tip)?;
+                        let Some(source_match) = origin_cfg.try_match(name, merge_base)? else { continue };
+
+                        let source_solver = if branch.base_version().is_none()
+                        {ctx.try_descend().map(|ctx| BranchSolver::new(ctx, cfg, repo, source_match)).transpose()?}
+                        else { None };
+                        solver.branch_roots.insert(merge_base, source_solver);
                     }
                     else
                     {
@@ -107,33 +132,46 @@ impl<'a> BranchSolver<'a>
         Ok(solver)
     }
 
-    fn solve_inc_for_commit(&self, id: Oid) -> VersionInc<SemVersion, SemVersionInc>
+    fn solve_inc_for_commit(&mut self, id: Oid) -> anyhow::Result<VersionInc<SemVersion, SemVersionInc>>
     {
         if let Some(tag) = self.tags.get(&id)
         {
-            return VersionInc::SoftBasis(tag.version().clone()); // basis since a tagged commit has the tagged version, and the following commits it is vNext
+            return Ok(VersionInc::SoftBasis(tag.version().clone())); // basis since a tagged commit has the tagged version, and the following commits it is vNext
         }
 
-        if let Some(base) = self.branch_roots.get(&id)
+        if let Some(source_solver) = self.branch_roots.get_mut(&id)
         {
-            return VersionInc::HardBasis(base.clone()); // hard basis since the branch root is already vNext
+            if let Some(source_solver) = source_solver
+            {
+                let source_version = source_solver.solve()?;
+                return Ok(VersionInc::SoftBasis(source_version.erase_build())); // soft basis since the solved value is vNext of the source branch
+            }
+            else
+            {
+                return Ok(VersionInc::HardBasis(self.current_branch.base_version().map(|v|v.clone()).unwrap_or_default())); // hard basis since the branch root is already vNext
+            }
         }
 
         if let Some(base) = self.version_bases.get(&id)
         {
-            return VersionInc::SoftBasis(base.clone());
+
+            return Ok(VersionInc::SoftBasis(base.clone()));
         }
 
-        VersionInc::Inc(SemVersionInc::Build(1))
+        Ok(VersionInc::Inc(SemVersionInc::Build(1)))
     }
 
     pub fn solve(&mut self) -> Result<SemVersion>
     {
+        self.solve_raw(self.current_branch.config().raw().v_next.clone())
+    }
+
+    fn solve_raw(&mut self, v_next: Option<SemVersionInc>) -> Result<SemVersion>
+    {
         let basis = self.current_branch.base_version().map(Clone::clone).unwrap_or_else(|| SemVersion::default());
-        let v_next = self.current_branch.config().raw().v_next.clone();
-        let tag = self.current_branch.tag();
-        let mut version = verner_core::resolve_version(self, basis,  v_next)?;
-        if version.build() > 0 { version = version.with_tag(tag); }
+        let tag = self.current_branch.tag().map(|tag|tag.to_string());
+        let mut version = verner_core::resolve_version(self, basis, v_next)?;
+        if version.build() > 0 { version = version.with_tag(tag.into()); }
         Ok(version)
     }
 }
@@ -147,7 +185,7 @@ impl<'a> Iterator for BranchSolver<'a>
         if let Some(commit) = self.rev_walk.next()
         {
             return match commit {
-                Ok(id) => Some(Ok(self.solve_inc_for_commit(id))),
+                Ok(id) => Some(self.solve_inc_for_commit(id)),
                 Err(err) => Some(Err(anyhow::anyhow!(err))),
             }
         }
@@ -234,7 +272,16 @@ pub fn solve<C: ConsoleWriter + 'static>(c: &C, cwd: &Path, cfg: RawConfig, args
     };
 
     
-    let mut solver = BranchSolver::new(&cfg, &repo, &branch)?;
+    let mut solver = BranchSolver::new(
+        BranchSolveContext
+            {
+                depth: 0,
+                max_depth: branch.config().raw().max_depth.unwrap_or(u32::MAX)
+            },
+            &cfg,
+            &repo,
+            branch
+        )?;
     Ok(solver.solve()?)
 }
 

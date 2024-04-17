@@ -22,7 +22,7 @@ struct Args
     config_file: PathBuf,
 
     #[command(subcommand)]
-    command: Option<Subcommands>
+    command: Subcommands
 }
 
 #[derive(Subcommand, Debug)]
@@ -82,7 +82,7 @@ fn run(console: &Console, args: Args) -> anyhow::Result<()>
     let config_path = if args.config_file.is_absolute() { args.config_file } else { cwd.join(args.config_file) };
     let config_path = config_path.absolutize()?;
 
-    match args.command.unwrap_or_else(|| Subcommands::Git(verner_git::cli::Args::parse()))
+    match args.command
     {
         Subcommands::Git(git) => 
         {

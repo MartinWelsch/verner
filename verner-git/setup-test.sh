@@ -81,6 +81,7 @@ git_commit "fix the rc"
 _git checkout -b "fix/patch-something"
 git_commit "patch try 1"
 
+
 REPO="$RELEASEFLOW_ROOT/0.1.0-feat-detached-head.1"
 git_init
 git_commit "initial commit"
@@ -90,7 +91,8 @@ _git update-ref "refs/remotes/origin/main" HEAD
 git_commit "feature commit"
 _git update-ref "refs/remotes/origin/feature/detached-head" HEAD
 
-REPO="$RELEASEFLOW_ROOT/1.1.1-feat-depth1.1"
+
+REPO="$RELEASEFLOW_ROOT/1.1.0-feat-depth1.1"
 git_init
 git_commit "initial commit"
 _git branch "release/1.0.x"
