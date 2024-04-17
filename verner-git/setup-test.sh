@@ -90,4 +90,12 @@ _git update-ref "refs/remotes/origin/main" HEAD
 git_commit "feature commit"
 _git update-ref "refs/remotes/origin/feature/detached-head" HEAD
 
+REPO="$RELEASEFLOW_ROOT/1.1.1-feat-depth1.1"
+git_init
+git_commit "initial commit"
+_git branch "release/1.0.x"
+git_commit "merge sth in main"
+_git checkout -b "feature/depth1"
+git_commit "feature depth1 commit"
+
 # end setup releaseflow repos

@@ -14,7 +14,7 @@ mod test
 
     fn get_config() -> RawConfig
     {
-        crate::preset_config(&crate::cli::ConfigPreset::Releaseflow).unwrap()
+        crate::config::preset_config(&crate::cli::ConfigPreset::Releaseflow).unwrap()
     }
 
 
@@ -61,4 +61,5 @@ mod test
     repo_test!(1, 0, 1, "rc", 1);
     repo_test!(1, 0, 0, "fix-patch-something", 1);
     repo_test!(0, 1, 0, "feat-detached-head", 1);
+    repo_test!(1, 1, 1, "feat-depth1", 1);
 }

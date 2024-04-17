@@ -3,13 +3,12 @@
 mod config;
 pub mod cli;
 
-use cli::ConfigPreset;
-pub use config::RawConfig;
+pub use config::{RawConfig, preset_config};
 
 use std::{collections::HashMap, path::Path};
 
 use anyhow::{bail, Result};
-use config::{BranchMatch, Config, RawBranchConfig, RawTagConfig, TagMatch};
+use config::{BranchMatch, Config, TagMatch};
 use git2::{Oid, Reference, Repository, Revwalk};
 use verner_core::{output::{ConsoleWriter, LogLevel}, semver::{SemVersion, SemVersionInc}, VersionInc};
 
@@ -61,7 +60,7 @@ impl<'a> BranchSolver<'a>
             else
             {
                 // find start of the current branch
-                for origin in branch.config().raw().origin.iter()
+                for origin in branch.config().raw().sources.iter()
                 {
                     if let Some(origin_cfg) = cfg.by_type(origin)
                     {
@@ -201,6 +200,7 @@ fn resolve_current_branch<'repo, C: ConsoleWriter>(c: &C, cfg: &Config, repo: &'
     }
 }
 
+/// starting point for resolving a version from a git repository
 pub fn solve<C: ConsoleWriter + 'static>(c: &C, cwd: &Path, cfg: RawConfig, args: cli::Args) -> anyhow::Result<SemVersion>
 {
     let cfg = cfg.parse()?;
@@ -236,62 +236,5 @@ pub fn solve<C: ConsoleWriter + 'static>(c: &C, cwd: &Path, cfg: RawConfig, args
     
     let mut solver = BranchSolver::new(&cfg, &repo, &branch)?;
     Ok(solver.solve()?)
-}
-
-
-pub fn preset_config(preset: &ConfigPreset) -> Result<RawConfig>
-{
-    Ok(match preset
-    {
-        ConfigPreset::Releaseflow => RawConfig
-        {
-            tracked_remotes: vec![ "origin".into() ],
-            tags: HashMap::from([
-                ("release".into(), RawTagConfig
-                {
-                    regex: r#"^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$"#.into(),
-                    version: "$major.$minor.$patch".into()
-                })
-            ]),
-            branches: HashMap::from([
-                ("feature".into(), RawBranchConfig
-                {
-                    regex: r#"^feat(?:ure)?/(?<name>.+)$"#.into(),
-                    tag: Some("feat-$name".into()),
-                    tracked: vec![],
-                    origin: vec!["main".into(), "release".into()],
-                    base_version: None,
-                    v_next: Some(SemVersionInc::Patch(1))
-                }),
-                ("fix".into(), RawBranchConfig
-                {
-                    regex: r#"^(?:bux)?fix/(?<name>.+)$"#.into(),
-                    tag: Some("fix-$name".into()),
-                    tracked: vec![],
-                    origin: vec!["main".into(), "release".into()],
-                    base_version: None,
-                    v_next: Some(SemVersionInc::Patch(1))
-                }),
-                ("main".into(), RawBranchConfig
-                {
-                    regex: r#"^main$"#.into(),
-                    tag: Some("SNAPSHOT".into()),
-                    tracked: vec!["release".into()],
-                    origin: vec![],
-                    base_version: Some("0.1.0".into()),
-                    v_next: Some(SemVersionInc::Minor(1))
-                }),
-                ("release".into(), RawBranchConfig
-                {
-                    regex: r#"^release/(?<major>\d+)\.(?<minor>\d+)(?:\.x)?$"#.into(),
-                    tag: Some("rc".into()),
-                    tracked: vec![],
-                    origin: vec!["main".into()],
-                    base_version: Some("$major.$minor.0".into()),
-                    v_next: Some(SemVersionInc::Patch(1))
-                })
-            ]),
-        },
-    })
 }
 
