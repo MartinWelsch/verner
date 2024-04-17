@@ -2,7 +2,7 @@ parameters:
   - name: version
     displayName: Version
     type: string
-    default: '0.1.4'
+    default: '0.1.5'
 
 
 steps:
@@ -35,7 +35,7 @@ steps:
 
     if ($isLinux)
     {
-      chmod +x "$absToolPath
+      chmod +x "$absToolPath"
     }
 
     Write-Host "Successfully installed verner to $absToolPath"
