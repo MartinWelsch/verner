@@ -2,12 +2,12 @@ parameters:
   - name: version
     displayName: Version
     type: string
-    default: '0.1.3'
+    default: '0.1.4'
 
 
 steps:
 - pwsh: |
-    $toolDir = "$(Agent.ToolsDirectory)/repo-version-tool/${{ parameters.version }}/x64"
+    $toolDir = "$(Agent.ToolsDirectory)/verner/${{ parameters.version }}/x64"
     $toolExists = Test-Path -Path "$($toolDir).complete"
     Write-Host "Is verner already installed? $(if($toolExists){"yes."}else{"no."})"
 
@@ -21,7 +21,7 @@ steps:
       exit 0
     }
 
-    $toolFileName = if($isWindows) { "verner.exe" } else { "verner" }
+    $toolFileName = if ($isWindows) { "verner.exe" } else { "verner" }
     $absToolPath = "$toolDir/$toolFileName"
 
     # create the direcory
@@ -29,8 +29,13 @@ steps:
     
     # download the executable
     Invoke-WebRequest "https://github.com/MartinWelsch/verner/releases/download/v${{ parameters.version }}/$toolFileName" -OutFile "$absToolPath"
-    if(Test-Path -Path "$absToolPath") {
+    if (Test-Path -Path "$absToolPath") {
       New-Item -Path "$($toolDir).complete" -ItemType File
+    }
+
+    if ($isLinux)
+    {
+      chmod +x "$absToolPath
     }
 
     Write-Host "Successfully installed verner to $absToolPath"
