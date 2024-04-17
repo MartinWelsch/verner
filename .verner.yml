@@ -1,0 +1,23 @@
+git:
+  tracked_remotes:
+  - origin
+  tags:
+    release:
+      regex: ^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$
+      version: $major.$minor.$patch
+  branches:
+    feature:
+      regex: ^feat(?:ure)?/(?<name>.+)$
+      label: feat-$name
+      sources:
+      - main
+    fix:
+      regex: ^(?:bux)?fix/(?<name>.+)$
+      label: fix-$name
+      sources:
+      - main
+    main:
+      regex: ^main$
+      label: SNAPSHOT
+      base_version: 0.1.0
+      v_next: !Minor 1

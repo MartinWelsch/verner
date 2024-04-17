@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+    <metadata>
+        <id>Verner</id>
+        <description>
+            verner - an advanced versioning tool. This package contains the binaries for: \
+            - Windows x64
+            - Linux x64.
+        </description>
+        <authors>Martin Welsch</authors>
+        <version>0.0.1</version>
+        <projectUrl>https://github.com/MartinWelsch/verner</projectUrl>
+
+    </metadata>
+    <files>
+        <file src="target/x86_64-pc-windows-gnu/release/verner.exe" target="tools/win/x64/verner.exe" />
+        <file src="target/x86_64-unknown-linux-musl/release/verner" target="tools/linux/x64/verner" />
+    </files>
+</package>
