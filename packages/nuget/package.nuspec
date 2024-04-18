@@ -13,7 +13,7 @@
 
     </metadata>
     <files>
-        <file src="target/x86_64-pc-windows-gnu/release/verner.exe" target="tools/win/x64/verner.exe" />
-        <file src="target/x86_64-unknown-linux-musl/release/verner" target="tools/linux/x64/verner" />
+        <file src="target/x86_64-pc-windows-gnu/release/verner.exe" target="tools/verner.exe" />
+        <file src="target/x86_64-unknown-linux-musl/release/verner" target="tools/verner" />
     </files>
 </package>
