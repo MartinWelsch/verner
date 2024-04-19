@@ -1,8 +1,9 @@
 #[cfg(test)]
 mod test
 {
+    use git2::Oid;
     use verner_core::{output::ConsoleWriter, semver::SemVersion};
-    use crate::{config::RawConfig, solve};
+    use crate::{config::{BranchConfig, RawBranchConfig, RawConfig, RawTagConfig}, solve};
 
     struct NullWriter;
     impl ConsoleWriter for NullWriter
@@ -63,4 +64,63 @@ mod test
     repo_test!(0, 1, 0, "feat-detached-head", 1);
     repo_test!(1, 1, 0, "feat-depth1", 1);
     repo_test!(1, 0, 0, "feat-on-root", 0);
+
+    #[test]
+    fn replace_label_hash()
+    {
+        let branch_config = RawBranchConfig
+        {
+            regex: "test".into(),
+            label: Some("$hash".into()),
+            base_version: None,
+            tracked: vec![],
+            sources: vec![],
+            v_next: None,
+            max_depth: None,
+        };
+        let branch_config = branch_config.parse("test".into()).expect("config did not parse");
+        let m = branch_config.try_match("test", Oid::from_str("3e95d253526c821c9e5da1edfeb8d90f7d59aae4").unwrap()).expect("error matching branch").expect("branch did not match");
+        assert_eq!(m.tag(), Some("3e95d253526c821c9e5da1edfeb8d90f7d59aae4"));
+    }
+    #[test]
+    fn replace_label_hash_short()
+    {
+        let branch_config = RawBranchConfig
+        {
+            regex: "test".into(),
+            label: Some("$hash_short".into()),
+            base_version: None,
+            tracked: vec![],
+            sources: vec![],
+            v_next: None,
+            max_depth: None,
+        };
+        let branch_config = branch_config.parse("test".into()).expect("config did not parse");
+        let m = branch_config.try_match("test", Oid::from_str("3e95d253526c821c9e5da1edfeb8d90f7d59aae4").unwrap()).expect("error matching branch").expect("branch did not match");
+        assert_eq!(m.tag(), Some("3e95d253"));
+    }
+    #[test]
+    fn replace_tag_version_hash()
+    {
+        let tag_config = RawTagConfig
+        {
+            regex: "test".into(),
+            version: "0.0.0-$hash".into()
+        };
+        let tag_config = tag_config.parse("test".into()).expect("config did not parse");
+        let m = tag_config.try_match("test", Oid::from_str("3e95d253526c821c9e5da1edfeb8d90f7d59aae4").unwrap()).expect("error matching branch").expect("branch did not match");
+        assert_eq!(m.version().label(), Some("3e95d253526c821c9e5da1edfeb8d90f7d59aae4"));
+    }
+    #[test]
+    fn replace_tag_version_hash_short()
+    {
+        let tag_config = RawTagConfig
+        {
+            regex: "test".into(),
+            version: "0.0.0-$hash_short".into()
+        };
+        let tag_config = tag_config.parse("test".into()).expect("config did not parse");
+        let m = tag_config.try_match("test", Oid::from_str("3e95d253526c821c9e5da1edfeb8d90f7d59aae4").unwrap()).expect("error matching branch").expect("branch did not match");
+        assert_eq!(m.version().label(), Some("3e95d253"));
+    }
 }

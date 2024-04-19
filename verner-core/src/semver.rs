@@ -7,7 +7,7 @@ use crate::VersionOp;
 
 lazy_static::lazy_static!
 {
-    static ref SEMVER_REGEX: Regex = Regex::new(r"^(?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?(?:-(?<tag>[^\.]*)(?:\.(?<build>\d+))?)?$").unwrap();
+    static ref SEMVER_REGEX: Regex = Regex::new(r"^(?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?(?:-(?<label>[^\.]*)(?:\.(?<build>\d+))?)?$").unwrap();
 }
 
 #[derive(Clone, Default, Debug, PartialEq)]
@@ -17,7 +17,7 @@ pub struct SemVersion
     minor: u32,
     patch: u32,
     build: u32,
-    tag: Option<Rc<Box<String>>>
+    label: Option<Rc<Box<String>>>
 }
 
 impl SemVersion
@@ -32,17 +32,17 @@ impl SemVersion
                 minor: captures["minor"].parse().unwrap(),
                 patch: captures.name("patch").map_or(0, |s| s.as_str().parse().unwrap()),
                 build: captures.name("build").map_or(0, |s| s.as_str().parse().unwrap()),
-                tag: captures.name("tag").filter(|t| t.len() > 0).map(|s| Rc::new(Box::new(s.as_str().to_string())))
+                label: captures.name("label").filter(|t| t.len() > 0).map(|s| Rc::new(Box::new(s.as_str().to_string())))
             })
         }
 
         None
     }
 
-    pub fn with_tag(&self, tag: Option<String>) -> SemVersion
+    pub fn with_label(&self, label: Option<String>) -> SemVersion
     {
         let mut v = self.clone();
-        v.tag = tag.map(|tag| Rc::new(Box::new(tag.to_string())));
+        v.label = label.map(|label| Rc::new(Box::new(label.to_string())));
         v
     }
     
@@ -62,8 +62,8 @@ impl SemVersion
         self.build
     }
     
-    pub fn tag(&self) -> Option<Rc<Box<String>>> {
-        self.tag.clone()
+    pub fn label<'a>(&'a self) -> Option<&'a str> {
+        self.label.as_ref().map(|r| r.as_str())
     }
     
     pub fn erase_build(&self) -> Self {
@@ -124,14 +124,14 @@ impl Display for SemVersion
         f.write_char('.')?;
         f.write_str(&self.patch.to_string())?;
 
-        if self.tag.is_some() || self.build > 0
+        if self.label.is_some() || self.build > 0
         {
             f.write_char('-')?;
         }
 
-        if let Some(ref tag) = self.tag
+        if let Some(ref label) = self.label
         {
-            f.write_str(tag)?;
+            f.write_str(label)?;
         }
 
         if self.build > 0
@@ -180,7 +180,7 @@ impl PartialOrd for SemVersion
             return Some(std::cmp::Ordering::Less)
         }
 
-        if self.tag != other.tag
+        if self.label != other.label
         {
             return None;
         }

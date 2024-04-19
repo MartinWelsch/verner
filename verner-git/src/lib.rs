@@ -78,7 +78,7 @@ impl<'a> BranchSolver<'a>
             {
                 let Some(name) = reference.shorthand() else { continue };
                 let Some(id) = reference.target() else { continue };
-                let Some(tag_match) = cfg.tags.iter().find_map(|e|e.try_match(name).transpose()) else { continue; };
+                let Some(tag_match) = cfg.tags.iter().find_map(|e|e.try_match(name, id).transpose()) else { continue; };
                 let tag_match = tag_match?;
                 solver.tags.insert(id, tag_match);
             }
@@ -171,7 +171,7 @@ impl<'a> BranchSolver<'a>
         let basis = self.current_branch.base_version().map(Clone::clone).unwrap_or_else(|| SemVersion::default());
         let tag = self.current_branch.tag().map(|tag|tag.to_string());
         let (mut version, hint) = verner_core::resolve_version(self, basis, v_next)?;
-        if hint != VersionHint::Fixed { version = version.with_tag(tag.into()); }
+        if hint != VersionHint::Fixed { version = version.with_label(tag.into()); }
         Ok(version)
     }
 }

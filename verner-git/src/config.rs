@@ -45,7 +45,7 @@ pub struct RawBranchConfig
     pub max_depth: Option<u32>
 }
 impl RawBranchConfig {
-    fn parse(self, r#type: String) -> anyhow::Result<BranchConfig> {
+    pub fn parse(self, r#type: String) -> anyhow::Result<BranchConfig> {
         Ok(
             BranchConfig
             {
@@ -145,10 +145,14 @@ pub struct BranchMatch<'a>
 impl<'a> BranchMatch<'a> {
     fn create(tip: Oid, captures: regex::Captures<'_>, config: &'a BranchConfig) -> anyhow::Result<Self>
     {
-        let tag = if let Some(ref tag_template) = config.raw.label
+        let tag = if let Some(ref label_template) = config.raw.label
         {
+            let tip_hash = tip.to_string();
             let mut t = String::new();
-            captures.expand(tag_template, &mut t);
+            let tpl = label_template.replace("$hash_short", &tip_hash[..8])
+                                            .replace("$hash", &tip_hash);
+            
+            captures.expand(&tpl, &mut t);
             Some(t)
         }
         else { None };
@@ -164,7 +168,7 @@ impl<'a> BranchMatch<'a> {
         
         if let Some(ref tag) = tag
         {
-            base_version = base_version.map(|v|v.with_tag(Some(tag.into())));
+            base_version = base_version.map(|v|v.with_label(Some(tag.into())));
         }
 
         Ok(Self
@@ -300,11 +304,13 @@ pub struct TagConfig
     raw: RawTagConfig
 }
 impl TagConfig {
-    pub fn try_match<'a>(&'a self, tag: &str) -> anyhow::Result<Option<TagMatch<'a>>>
+    pub fn try_match<'a>(&'a self, tag: &str, id: Oid) -> anyhow::Result<Option<TagMatch<'a>>>
     {
         let Some(captures) = self.regex.captures(tag) else { return Ok(None) };
         let mut version_string = String::new();
-        captures.expand(&self.raw.version, &mut version_string);
+        let id_hash = id.to_string();
+        let tpl = self.raw.version.replace("$hash_short", &id_hash[..8]).replace("$hash", &id_hash);
+        captures.expand(&tpl, &mut version_string);
         let Some(version) = SemVersion::parse(&version_string) else { bail!("{version_string} is an invalid version string") };
         Ok(Some(TagMatch{
             config: &self,
