@@ -38,18 +38,19 @@ impl BranchSolveContext
     }
 }
 
-struct BranchSolver<'a>
+struct BranchSolver<'a, O: ConsoleWriter>
 {
+    output: &'a O,
     current_branch: BranchMatch<'a>,
-    version_bases: HashMap<Oid, SemVersion>,
-    branch_roots: HashMap<Oid, Option<BranchSolver<'a>>>,
+    version_bases: HashMap<Oid, (SemVersion, BranchMatch<'a>)>,
+    branch_roots: HashMap<Oid, Option<BranchSolver<'a, O>>>,
     tags: HashMap<Oid, TagMatch<'a>>,
     rev_walk: Revwalk<'a>
 }
 
-impl<'a> BranchSolver<'a>
+impl<'a, O: ConsoleWriter> BranchSolver<'a, O>
 {
-    pub fn new(ctx: BranchSolveContext, cfg: &'a Config, repo: &'a Repository, branch: BranchMatch<'a>) -> Result<Self>
+    pub fn new(ctx: BranchSolveContext, output: &'a O, cfg: &'a Config, repo: &'a Repository, branch: BranchMatch<'a>) -> Result<Self>
     {
         let mut branches = Vec::new();
         for b in repo.branches(Some(git2::BranchType::Local))?
@@ -63,6 +64,7 @@ impl<'a> BranchSolver<'a>
 
         let mut solver = Self
         {
+            output,
             current_branch: branch.clone(),
             version_bases: Default::default(),
             branch_roots: Default::default(),
@@ -96,7 +98,7 @@ impl<'a> BranchSolver<'a>
                         let Some(source_match) = origin_cfg.try_match(name, merge_base)? else { continue };
 
                         let source_solver = if branch.base_version().is_none()
-                        {ctx.try_descend().map(|ctx| BranchSolver::new(ctx, cfg, repo, source_match)).transpose()?}
+                        {ctx.try_descend().map(|ctx| BranchSolver::new(ctx, output, cfg, repo, source_match)).transpose()?}
                         else { None };
                         solver.branch_roots.insert(merge_base, source_solver);
                     }
@@ -118,7 +120,7 @@ impl<'a> BranchSolver<'a>
 
                         if let Some(tracked_base) = tracked_match.base_version()
                         {
-                            solver.version_bases.insert(merge_base, tracked_base.clone());
+                            solver.version_bases.insert(merge_base, (tracked_base.clone(), tracked_match));
                         }
                     }
                     else
@@ -136,6 +138,7 @@ impl<'a> BranchSolver<'a>
     {
         if let Some(tag) = self.tags.get(&id)
         {
+            self.output.user_line(LogLevel::Trace, format!("{id} -> Found tag {tag}"));
             return Ok(VersionInc::Fixed(tag.version().clone())); // fixed since a tagged commit has the tagged version, and the following commits it is vNext
         }
 
@@ -143,21 +146,25 @@ impl<'a> BranchSolver<'a>
         {
             if let Some(source_solver) = source_solver
             {
+                self.output.user_line(LogLevel::Trace, format!("{id} -> Found branch root, now solving for {}", source_solver.current_branch.config().r#type()));
                 let source_version = source_solver.solve()?;
                 return Ok(VersionInc::SoftBasis(source_version.erase_build())); // soft basis since the solved value is vNext of the source branch
             }
             else
             {
-                return Ok(VersionInc::HardBasis(self.current_branch.base_version().map(|v|v.clone()).unwrap_or_default())); // hard basis since the branch root is already vNext
+                let base_version = self.current_branch.base_version().map(|v|v.clone()).unwrap_or_default();
+                self.output.user_line(LogLevel::Trace, format!("{id} -> Found branch root, using base version {}", &base_version));
+                return Ok(VersionInc::HardBasis(base_version)); // hard basis since the branch root is already vNext
             }
         }
 
-        if let Some(base) = self.version_bases.get(&id)
+        if let Some((base_version, source_branch_match)) = self.version_bases.get(&id)
         {
-
-            return Ok(VersionInc::SoftBasis(base.clone()));
+            self.output.user_line(LogLevel::Trace, format!("{id} -> Found root of tracked branch (type: {} version: {})", source_branch_match.config().r#type(), &base_version));
+            return Ok(VersionInc::SoftBasis(base_version.clone()));
         }
 
+        self.output.user_line(LogLevel::Trace, format!("{id} -> Increment build by 1"));
         Ok(VersionInc::Inc(SemVersionInc::Build(1)))
     }
 
@@ -176,7 +183,7 @@ impl<'a> BranchSolver<'a>
     }
 }
 
-impl<'a> Iterator for BranchSolver<'a>
+impl<'a, O: ConsoleWriter> Iterator for BranchSolver<'a, O>
 {
     type Item = Result<VersionInc<SemVersion, SemVersionInc>>;
     
@@ -239,7 +246,7 @@ fn resolve_current_branch<'repo, C: ConsoleWriter>(c: &C, cfg: &Config, repo: &'
 }
 
 /// starting point for resolving a version from a git repository
-pub fn solve<C: ConsoleWriter + 'static>(c: &C, cwd: &Path, cfg: RawConfig, args: cli::Args) -> anyhow::Result<SemVersion>
+pub fn solve<O: ConsoleWriter + 'static>(output: &O, cwd: &Path, cfg: RawConfig, args: cli::Args) -> anyhow::Result<SemVersion>
 {
     let cfg = cfg.parse()?;
     let repo = args.git_dir.map_or_else(||git2::Repository::discover(cwd), |git_dir|git2::Repository::open(git_dir))?;
@@ -268,7 +275,7 @@ pub fn solve<C: ConsoleWriter + 'static>(c: &C, cwd: &Path, cfg: RawConfig, args
     }
     else
     {
-        branch_map_from_ref(resolve_current_branch(c, &cfg, &repo)?)?
+        branch_map_from_ref(resolve_current_branch(output, &cfg, &repo)?)?
     };
 
     
@@ -278,6 +285,7 @@ pub fn solve<C: ConsoleWriter + 'static>(c: &C, cwd: &Path, cfg: RawConfig, args
                 depth: 0,
                 max_depth: branch.config().raw().max_depth.unwrap_or(u32::MAX)
             },
+            output,
             &cfg,
             &repo,
             branch

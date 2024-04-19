@@ -21,8 +21,11 @@ struct Args
     #[arg(short, long, default_value = ".verner.yml")]
     config_file: PathBuf,
 
+    #[arg(long = "trace", default_value_t = false)]
+    pub trace: bool,
+
     #[command(subcommand)]
-    command: Subcommands
+    command: Subcommands,
 }
 
 #[derive(Subcommand, Debug)]
@@ -48,7 +51,12 @@ enum InitType
 fn main() -> ExitCode 
 {
     let args = Args::parse();
-    let console = Console::default();
+    let mut console = Console::default();
+
+    if args.trace
+    {
+        console.min_level = LogLevel::Trace;
+    }
 
     match run(&console, args)
     {
