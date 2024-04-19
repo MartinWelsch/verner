@@ -10,7 +10,7 @@ use std::{collections::HashMap, path::Path};
 use anyhow::{bail, Result};
 use config::{BranchMatch, Config, TagMatch};
 use git2::{Oid, Reference, Repository, Revwalk};
-use verner_core::{output::{ConsoleWriter, LogLevel}, semver::{SemVersion, SemVersionInc}, VersionInc};
+use verner_core::{output::{ConsoleWriter, LogLevel}, semver::{SemVersion, SemVersionInc}, VersionHint, VersionInc};
 
 
 struct BranchSolveContext
@@ -136,7 +136,7 @@ impl<'a> BranchSolver<'a>
     {
         if let Some(tag) = self.tags.get(&id)
         {
-            return Ok(VersionInc::SoftBasis(tag.version().clone())); // basis since a tagged commit has the tagged version, and the following commits it is vNext
+            return Ok(VersionInc::Fixed(tag.version().clone())); // fixed since a tagged commit has the tagged version, and the following commits it is vNext
         }
 
         if let Some(source_solver) = self.branch_roots.get_mut(&id)
@@ -170,8 +170,8 @@ impl<'a> BranchSolver<'a>
     {
         let basis = self.current_branch.base_version().map(Clone::clone).unwrap_or_else(|| SemVersion::default());
         let tag = self.current_branch.tag().map(|tag|tag.to_string());
-        let mut version = verner_core::resolve_version(self, basis, v_next)?;
-        if version.build() > 0 { version = version.with_tag(tag.into()); }
+        let (mut version, hint) = verner_core::resolve_version(self, basis, v_next)?;
+        if hint != VersionHint::Fixed { version = version.with_tag(tag.into()); }
         Ok(version)
     }
 }

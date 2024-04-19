@@ -62,4 +62,5 @@ mod test
     repo_test!(1, 0, 0, "fix-patch-something", 1);
     repo_test!(0, 1, 0, "feat-detached-head", 1);
     repo_test!(1, 1, 0, "feat-depth1", 1);
+    repo_test!(1, 0, 0, "feat-on-root", 0);
 }
