@@ -16,7 +16,7 @@ pub enum VersionInc<Ver, Inc>
     /// use this as the version, continue on the current version
     HardBasis(Ver),
 
-    /// use this as the version, do not apply vNext and stop further calculations
+    /// use this as the version, if the current node is `Fixed` hint it as fixed, otherwise apply vnext
     Fixed(Ver),
 
     /// do nothing
@@ -35,12 +35,19 @@ pub trait NodeVersionInfo<Inc>
     fn version_effect(&self) -> Inc;
 }
 
-pub fn resolve_version<Ver: VersionOp<Inc> + Display, Inc: Display>(history: &mut HistoryIter<Ver, Inc>, basis: Ver, v_next: Option<Inc>) -> Result<Ver>
+#[derive(PartialEq)]
+pub enum VersionHint
 {
+    Basis,
+    Fixed,
+    Derived
+}
+
+pub fn resolve_version<Ver: VersionOp<Inc> + Display, Inc: Display>(history: &mut HistoryIter<Ver, Inc>, basis: Ver, v_next: Option<Inc>) -> Result<(Ver, VersionHint)>
+{
+    let mut hint = VersionHint::Basis;
     let mut version = basis;
     let mut incs: Vec<Inc> = Default::default();
-
-    let mut count = 0;
 
     while let Some(inc) = history.next()
     {
@@ -51,11 +58,12 @@ pub fn resolve_version<Ver: VersionOp<Inc> + Display, Inc: Display>(history: &mu
             VersionInc::Inc(add) =>
             {
                 incs.push(add);
+                hint = VersionHint::Derived;
             },
             VersionInc::SoftBasis(soft_basis) =>
             {
                 version = soft_basis;
-                if count > 0
+                if incs.len() > 0
                 {
                     v_next.inspect(|i|version.inc(i));
                 }
@@ -68,12 +76,16 @@ pub fn resolve_version<Ver: VersionOp<Inc> + Display, Inc: Display>(history: &mu
             },
             VersionInc::Fixed(fix) =>
             {
-                return Ok(fix);
+                if incs.len() == 0
+                {
+                    return Ok((fix, VersionHint::Fixed));
+                }
+                version = fix;
+                v_next.inspect(|i|version.inc(i));
+                break;
             },
             VersionInc::Skip => { },
         }
-
-        count += 1;
     }
 
     for i in incs.as_slice()
@@ -81,5 +93,5 @@ pub fn resolve_version<Ver: VersionOp<Inc> + Display, Inc: Display>(history: &mu
         version.inc(i);
     }
     
-    Ok(version)
+    Ok((version, hint))
 }

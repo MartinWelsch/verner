@@ -100,4 +100,12 @@ git_commit "merge sth in main"
 _git checkout -b "feature/depth1"
 git_commit "feature depth1 commit"
 
+
+REPO="$RELEASEFLOW_ROOT/1.0.0-feat-on-root"
+git_init
+git_commit "initial commit"
+git_commit "initial commit"
+_git branch "release/1.0.x"
+_git checkout -b "feature/on-root"
+
 # end setup releaseflow repos
