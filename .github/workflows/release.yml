@@ -38,7 +38,7 @@ jobs:
     - name: Set version
       run: |
         REF=${{ github.ref_name }}
-        VERSION=${REF#refs/tags/v}
+        VERSION=${REF#v}
         sed -i -e "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
 
     - name: Build verner - Linux
