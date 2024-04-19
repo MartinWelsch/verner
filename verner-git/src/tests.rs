@@ -3,7 +3,7 @@ mod test
 {
     use git2::Oid;
     use verner_core::{output::ConsoleWriter, semver::SemVersion};
-    use crate::{config::{BranchConfig, RawBranchConfig, RawConfig, RawTagConfig}, solve};
+    use crate::{config::{RawBranchConfig, RawConfig, RawTagConfig}, solve};
 
     struct NullWriter;
     impl ConsoleWriter for NullWriter

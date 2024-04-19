@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use anyhow::bail;
 use git2::Oid;
@@ -125,6 +125,10 @@ impl BranchConfig {
         }
 
         Ok(None)
+    }
+    
+    pub fn r#type(&self) -> &str {
+        &self.r#type
     }
 }
 pub struct Config
@@ -290,7 +294,7 @@ impl RawTagConfig
         let regex = Regex::new(&self.regex)?;
         Ok(TagConfig
         {
-            _type: r#type.into(),
+            r#type: r#type.into(),
             regex,
             raw: self
         })
@@ -299,7 +303,7 @@ impl RawTagConfig
 
 pub struct TagConfig
 {
-    _type: String,
+    r#type: String,
     regex: Regex,
     raw: RawTagConfig
 }
@@ -314,6 +318,7 @@ impl TagConfig {
         let Some(version) = SemVersion::parse(&version_string) else { bail!("{version_string} is an invalid version string") };
         Ok(Some(TagMatch{
             config: &self,
+            tag: tag.into(),
             version
         }))
     }
@@ -322,6 +327,7 @@ impl TagConfig {
 pub struct TagMatch<'a>
 {
     config: &'a TagConfig,
+    tag: String,
     version: SemVersion
 }
 
@@ -332,6 +338,15 @@ impl<'a> TagMatch<'a> {
     
     pub fn version(&self) -> &SemVersion {
         &self.version
+    }
+}
+
+impl Display for TagMatch<'_>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+    {
+        f.write_fmt(format_args!("(tag: {}, type: {}, version: {})", &self.tag, &self.config.r#type, &self.version))?;
+        Ok(())
     }
 }
 

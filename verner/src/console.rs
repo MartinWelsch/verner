@@ -6,14 +6,23 @@ use verner_core::output::{ConsoleWriter, LogLevel};
 
 
 #[derive(Default)]
-pub struct Console {}
+pub struct Console
+{
+    pub min_level: LogLevel
+}
 
 impl Console
 {
     pub fn user_line<D: Display>(&self, level: LogLevel, d: D)
     {
+        if level < self.min_level
+        {
+            return;
+        }
+
         let indicator_color = match level
         {
+            LogLevel::Trace => color_bright_black,
             LogLevel::Info => color_bright_blue,
             LogLevel::Warning => color_yellow,
             LogLevel::Error => color_red,
@@ -22,6 +31,7 @@ impl Console
 
         let indicator_symbol = match level
         {
+            LogLevel::Trace => "✎",
             LogLevel::Info => "🛈",
             LogLevel::Success => "✔",
             LogLevel::Warning => "⚠",
@@ -30,6 +40,7 @@ impl Console
 
         let level_text = match level
         {
+            LogLevel::Trace => "TRCE",
             LogLevel::Info => "INFO",
             LogLevel::Success => "OK",
             LogLevel::Warning => "WARN",

@@ -34,7 +34,13 @@ jobs:
     
     - name: Run tests
       run: cargo test --release --verbose
-      
+
+    - name: Set version
+      run: |
+        REF=${{ github.ref_name }}
+        VERSION=${REF#refs/tags/v}
+        sed -i -e "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
+
     - name: Build verner - Linux
       run: cargo build --bin verner --release --verbose --target x86_64-unknown-linux-musl
     
